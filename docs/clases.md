@@ -104,4 +104,58 @@ classDiagram
     ReporteService --> PartidaRepository
 ```
 
+## App Android
+
+```mermaid
+classDiagram
+    direction LR
+    class CamaraActivity {
+        -Mat referencia
+        -String fen
+        +buscarTableroAuto()
+        +leerJugada()
+        +deshacer()
+    }
+    class Vision {
+        <<object>>
+        +buscarTablero(Bitmap) List~P~
+        +enderezar(Bitmap, List~P~) Mat
+        +cambios(Mat, Mat, Lado) DoubleArray
+        +cuadricula(List~P~) List~P~
+    }
+    class Geometria {
+        <<object>>
+        +ajustarLineas(DoubleArray, Int)
+        +orientar(DoubleArray) IntArray
+        +puntajeInicial(DoubleArray) Double
+        +ladoCercano(List~P~) Lado
+        +zonaBase(Lado) DoubleArray
+    }
+    class Deduccion {
+        <<object>>
+        +deducir(String fen, DoubleArray cambios) Resultado
+    }
+    class Api {
+        +login(email, password)
+        +partidasEnCurso()
+        +registrarJugada(id, uci, confianza)
+        +deshacer(id)
+    }
+    class LoginActivity
+    class PartidasActivity
+    class Marcas
+
+    LoginActivity --> Api
+    PartidasActivity --> Api
+    CamaraActivity --> Api
+    CamaraActivity --> Vision
+    CamaraActivity --> Deduccion
+    CamaraActivity --> Marcas
+    Vision --> Geometria
+```
+
+`Vision` usa OpenCV; `Geometria` y `Deduccion` son lógica pura con tests unitarios (19 tests, dos con datos medidos en una prueba real).
+
+## Validación de jugadas en el servidor
+
 `PartidaService.registrarJugada` usa la librería chesslib para validar que la jugada UCI sea legal en `fenActual`, obtener la notación SAN y detectar mate, ahogado o material insuficiente.

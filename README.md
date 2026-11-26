@@ -21,16 +21,30 @@ flowchart LR
 | `docs/` | UML: [casos de uso](docs/casos-de-uso.md), [clases](docs/clases.md), [entidad-relación](docs/er.md). |
 | `tasks/` | Plan y tareas por sprint. |
 
+## Capturas
+
+| App Android: tablero detectado solo | Panel web: partida registrada por la cámara |
+|---|---|
+| <img src="docs/capturas/app-01-camara.png" width="260"> | <img src="docs/capturas/web-04-partida-tablero.png" width="520"> |
+
+Más capturas y reportes de ejemplo (PDF y Excel) en [`docs/capturas`](docs/capturas).
+
 ## Cómo se reconoce la jugada
 
-En lugar de clasificar cada pieza (lento y frágil), la app:
+En lugar de clasificar cada pieza (lento y frágil), la app compara fotos y razona con las reglas del ajedrez. Funciona con un tablero estándar cualquiera, sin marcadores, y con el celular inclinado (no hace falta ponerlo encima del tablero).
 
-1. Detecta las cuatro esquinas del tablero y lo endereza con una homografía (OpenCV).
-2. Divide la imagen en 64 casillas y mide cuáles están ocupadas y de qué color es la pieza.
-3. Compara con la posición anterior y elige, entre las jugadas legales, la que explica ese cambio.
-4. Envía la jugada en notación UCI (`e2e4`) con su nivel de confianza. El servidor la vuelve a validar.
+1. **Ubica el tablero solo**, en la posición inicial:
+   - busca el contorno exterior del tablero (el cuadrilátero convexo más grande) y lo endereza con una homografía;
+   - dentro, encuentra el ancho del marco a cada lado buscando dónde 9 líneas igualmente espaciadas calzan con los bordes de las casillas;
+   - decide la orientación con las piezas: las blancas están del lado de las piezas claras y la columna «a» sale del color de las casillas (a1 es oscura).
+2. **Fija enfoque y exposición** de la cámara para que no cambien entre fotos.
+3. Después de cada jugada **compara cada casilla con la foto anterior**. Solo mide el centro de la casilla, corrido hacia la cámara, que es donde apoya la base de la pieza: con la cámara inclinada las piezas se recuestan y tapan los bordes de las casillas vecinas.
+4. **Elige entre las jugadas legales** la que mejor explica los cambios (incluye enroque, captura al paso y coronación). La confianza se mide comparando la ventaja de la mejor jugada con el ruido de la cámara; si es baja, muestra las opciones en notación algebraica para que el árbitro elija.
+5. Envía la jugada en notación UCI (`e2e4`) con su confianza. El servidor la vuelve a validar con las reglas.
 
-Si la cámara se equivoca, el árbitro deshace la última jugada o la carga a mano.
+Si la cámara se equivoca, el árbitro deshace la última jugada o la carga a mano. Si la detección automática falla, se calibra tocando las 4 esquinas.
+
+En la prueba con un tablero plegable real, la app registró sola una partida de 37 jugadas (enroques, capturas y una captura al paso incluidas) sin correcciones.
 
 ## Ejecutar con Docker Compose
 
@@ -84,7 +98,27 @@ Con el celular conectado por USB y la depuración USB activada:
 adb install -r app\build\outputs\apk\debug\app-debug.apk
 ```
 
-En la app, el servidor es `http://IP-DEL-PC:8080/ajedrez` (celular y PC en la misma red Wi-Fi). Uso: elegir una partida en curso, fijar el celular sobre el tablero, tocar «Calibrar» y marcar las esquinas a8, h8, h1, a1. Después de cada jugada, tocar «Registrar jugada». Una pulsación larga muestra las jugadas candidatas para elegir a mano.
+El APK ya compilado está en la sección **Releases** del repositorio.
+
+**Uso:** crear la partida en el panel web, entrar a ella en la app con el tablero en la posición inicial y el celular fijo (puede estar inclinado). La cuadrícula verde aparece sola. Después de cada jugada, tocar «Registrar jugada».
+- Pulsación larga en «Registrar jugada»: elegir la jugada de una lista.
+- «Deshacer»: corrige la última jugada.
+- Toque en «Calibrar»: calibración manual (esquinas a8, h8, h1, a1). Pulsación larga en «Calibrar»: vuelve a buscar el tablero solo.
+
+### Conectar el celular con el servidor
+
+**Por cable USB (lo más simple):** con la depuración USB activada, `adb reverse tcp:8080 tcp:8080` y en la app el servidor es `http://localhost:8080/ajedrez`.
+
+**Por Wi-Fi (demo sin cable):**
+1. Celular y PC en la misma red Wi-Fi (sirve el punto de acceso del propio celular).
+2. Ver la IP del PC con `ipconfig` (por ejemplo `192.168.1.2`).
+3. Permitir el puerto 8080 en el firewall de Windows (una vez, en PowerShell como administrador):
+   ```powershell
+   New-NetFirewallRule -DisplayName "Ajedrez API 8080" -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow -Profile Private
+   ```
+4. En la app, el servidor es `http://IP-DEL-PC:8080/ajedrez`. Para comprobarlo, abrir `http://IP-DEL-PC:8080/ajedrez/api/health` en el navegador del celular: debe decir `{"estado":"ok"}`.
+
+La red Wi-Fi debe estar marcada como «Privada» en Windows; en redes públicas (como la de la universidad) conviene usar el punto de acceso del celular.
 
 ## Pruebas
 

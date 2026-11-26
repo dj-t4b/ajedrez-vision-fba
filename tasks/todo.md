@@ -23,15 +23,15 @@
 ### Checkpoint 2: flujo web completo
 
 ## Sprint 3: Android + visión
-- [ ] T3.1 App Kotlin con login (Retrofit) y CameraX. Verificación: login desde el teléfono. (compila; falta probar en el celular)
-- [ ] T3.2 Detección del tablero y rejilla 8x8 con OpenCV. Verificación: fotos de prueba con la rejilla dibujada. (calibración manual de 4 esquinas hecha; falta probar en el celular)
+- [x] T3.1 App Kotlin con login (Retrofit) y CameraX. Verificación: login desde el teléfono.
+- [x] T3.2 Detección del tablero y rejilla 8x8 con OpenCV. Verificación: fotos de prueba con la rejilla dibujada.
 - [x] T3.3 Deducción de jugada por diferencia de ocupación + jugadas legales. Verificación: test unitario con posiciones conocidas.
-- [ ] T3.4 Envío de jugada a la API + corrección manual. Verificación: la jugada aparece en la web.
+- [x] T3.4 Envío de jugada a la API + corrección manual. Verificación: la jugada aparece en la web.
 
 ### Checkpoint 3: demo de punta a punta (foto → jugada → web)
 
 ## Sprint 4: Reportes y defensa
 - [x] T4.1 Reportes PDF y Excel de partidas/usuarios. Verificación: descarga desde la web.
 - [x] T4.2 UML (casos de uso, clases, ER) en `docs/`. Verificación: diagramas renderizados.
-- [ ] T4.3 README final (instalación, Docker, capturas). Verificación: seguir el README en limpio.
+- [x] T4.3 README final (instalación, Docker, capturas). Verificación: seguir el README en limpio.
 - [ ] T4.4 Guion de la defensa en vivo.
