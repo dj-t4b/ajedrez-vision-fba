@@ -20,7 +20,8 @@ class GeometriaTest {
 
     @Test fun zonaBaseQuedaHaciaLaCamara() {
         val z = Geometria.zonaBase(Lado.ABAJO)
-        assertTrue(z[1] > 0.4 && z[3] > 0.8) // mitad inferior de la casilla
+        assertTrue((z[1] + z[3]) / 2 > 0.5) // centrada un poco hacia abajo (la cámara)
+        assertTrue(z[1] > 0.25 && z[3] < 0.95) // sin tocar los bordes, que tapan las piezas vecinas
     }
 
     /**

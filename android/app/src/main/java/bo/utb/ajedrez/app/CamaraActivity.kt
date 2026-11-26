@@ -28,6 +28,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.opencv.android.OpenCVLoader
 import org.opencv.core.Mat
+import org.opencv.imgcodecs.Imgcodecs
 import java.io.File
 
 /**
@@ -187,6 +188,12 @@ class CamaraActivity : ComponentActivity() {
         val cambios = Vision.cambios(ref, actual, Geometria.ladoCercano(marcas.esquinas))
         val r = Deduccion.deducir(fen, cambios)
         Log.i("Ajedrez", "candidatas=${r.candidatas} confianza=${r.confianza}")
+        Log.i("Ajedrez", "cambios a8..h1:\n" + cambios.toList().chunked(8).joinToString("\n") { f -> f.joinToString(" ") { "%3.0f".format(it) } })
+        // Tableros enderezados antes/después, para revisar la lectura desde el PC con adb pull
+        getExternalFilesDir(null)?.let { dir ->
+            Imgcodecs.imwrite(File(dir, "antes.png").path, ref)
+            Imgcodecs.imwrite(File(dir, "despues.png").path, actual)
+        }
 
         val mejor = r.mejor
         if (mejor == null) {

@@ -27,14 +27,15 @@ object Geometria {
 
     /**
      * Zona de cada casilla (fracciones x0, y0, x1, y1 de la casilla enderezada) donde apoya la base
-     * de la pieza: la franja hacia la cámara. La silueta de una pieza alta se recuesta hacia el
-     * lado opuesto y tapa la casilla de atrás, pero su base queda en esta franja.
+     * de la pieza: el centro, corrido un poco hacia la cámara. Con la cámara inclinada cada pieza se
+     * recuesta alejándose de la cámara, así que tapa la casilla de atrás; y la pieza de la casilla de
+     * delante tapa el borde cercano de esta. Por eso no sirve el borde: la base queda en el centro.
      */
     fun zonaBase(lado: Lado): DoubleArray = when (lado) {
-        Lado.ABAJO -> doubleArrayOf(0.2, 0.45, 0.8, 0.9)
-        Lado.ARRIBA -> doubleArrayOf(0.2, 0.1, 0.8, 0.55)
-        Lado.IZQUIERDA -> doubleArrayOf(0.1, 0.2, 0.55, 0.8)
-        Lado.DERECHA -> doubleArrayOf(0.45, 0.2, 0.9, 0.8)
+        Lado.ABAJO -> doubleArrayOf(0.3, 0.4, 0.7, 0.8)
+        Lado.ARRIBA -> doubleArrayOf(0.3, 0.2, 0.7, 0.6)
+        Lado.IZQUIERDA -> doubleArrayOf(0.2, 0.3, 0.6, 0.7)
+        Lado.DERECHA -> doubleArrayOf(0.4, 0.3, 0.8, 0.7)
     }
 
     /**
