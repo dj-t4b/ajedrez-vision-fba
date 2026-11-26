@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -145,6 +146,26 @@ class FlujoApiTest {
         llamar(get("/api/usuarios"), tAp, null).andExpect(status().isForbidden());
         long adminId = leer(mvc.perform(get("/api/auth/yo").header("Authorization", "Bearer " + admin))).at("/id").asLong();
         llamar(delete("/api/usuarios/" + adminId), admin, null).andExpect(status().isUnprocessableEntity());
+
+        // El administrador puede todo en cualquier torneo sin tener un rol asignado
+        llamar(post("/api/partidas/" + partida + "/jugadas/1/corregir"), admin, "{\"uci\":\"e2e4\"}").andExpect(status().isOk());
+
+        // Auditoría: registra todo (admin incluido, celulares y rechazos), sin contraseñas; solo la ve el admin
+        llamar(get("/api/auditoria"), tAp, null).andExpect(status().isForbidden());
+        String registro = llamar(get("/api/auditoria?limite=2000"), admin, null).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        for (String esperado : new String[]{"Inicio de sesión fallido", "Creó usuario", "Asignó un rol en el torneo",
+                "Celular vinculado", "Jugada leída por la cámara", "C-01 · Mesa 1", "Corrigió una jugada", "Árbitro uno <arb1@fba.bo>",
+                "Terminó la partida (celular)", "Desvinculó un celular", "Descargó un reporte", "Administrador <admin@fba.bo>"}) {
+            assert registro.contains(esperado) : "falta en la auditoría: " + esperado;
+        }
+        assert !registro.contains("clave123") && !registro.contains("admin123") && !registro.contains(pin) : "la auditoría guardó un secreto";
+        assert registro.contains("\"estado\":403") : "los rechazos también se registran";
+        JsonNode soloCorrecciones = leer(llamar(get("/api/auditoria?texto=corrigi"), admin, null));
+        assert soloCorrecciones.size() == 3 : soloCorrecciones; // árbitro uno, admin y el intento rechazado del árbitro dos
+        assert registro.contains("Corrigió una jugada (rechazado)");
+        llamar(get("/api/auditoria/csv"), admin, null).andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", startsWith("text/csv")));
     }
 
     private long usuario(String admin, String nombre, String email) throws Exception {

@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { AlertTriangle, ArrowLeft, Camera, Copy, FileText, Hand, RotateCcw, Undo2, X } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { AlertTriangle, ArrowLeft, Camera, Copy, FileText, Hand, RotateCcw, Trash2, Undo2, X } from 'lucide-react'
 import { api, descargar } from '../api.js'
 import { useDatos } from '../componentes/useDatos.js'
 import Tablero from '../componentes/Tablero.jsx'
@@ -17,6 +17,8 @@ export default function Partida() {
   const [ocupado, setOcupado] = useState(false)
   const [copiado, setCopiado] = useState(false)
   const [corrigiendo, setCorrigiendo] = useState(null) // número de jugada que se está corrigiendo
+  const [borrando, setBorrando] = useState(false)
+  const navegar = useNavigate()
 
   if (errorCarga && !datos) return <div className="error" role="alert">{errorCarga}</div>
   if (!datos) return <p className="secundario">Cargando partida…</p>
@@ -39,6 +41,18 @@ export default function Partida() {
       setError(e.message)
     } finally {
       setOcupado(false)
+    }
+  }
+
+  async function eliminar() {
+    setOcupado(true)
+    try {
+      await api(`/api/partidas/${id}`, { metodo: 'DELETE' })
+      navegar(`/torneos/${p.torneoId}`)
+    } catch (e) {
+      setError(e.message)
+      setOcupado(false)
+      setBorrando(false)
     }
   }
 
@@ -134,6 +148,17 @@ export default function Partida() {
               <button onClick={() => accion(`/api/partidas/${id}/reabrir`, 'POST')} disabled={ocupado}>
                 <RotateCcw size={16} aria-hidden /> Reabrir
               </button>
+            )}
+            {permisos?.gestionar && (
+              borrando ? (
+                <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>
+                  <span className="secundario">¿Eliminar la partida y sus {jugadas.length} jugadas?</span>
+                  <button className="peligro lleno" onClick={eliminar} disabled={ocupado}>Eliminar</button>
+                  <button className="fantasma" onClick={() => setBorrando(false)}>No</button>
+                </span>
+              ) : (
+                <button className="fantasma peligro" onClick={() => setBorrando(true)}><Trash2 size={16} aria-hidden /> Eliminar partida</button>
+              )
             )}
           </div>
 

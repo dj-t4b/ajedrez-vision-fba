@@ -1,6 +1,11 @@
 package bo.utb.ajedrez.config;
 
+import bo.utb.ajedrez.auditoria.AuditoriaRepository;
+import bo.utb.ajedrez.auditoria.FiltroAuditoria;
+import bo.utb.ajedrez.dispositivo.DispositivoRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -41,7 +46,8 @@ public class SecurityConfig {
     }
 
     @Bean
-    SecurityFilterChain filtros(HttpSecurity http) throws Exception {
+    SecurityFilterChain filtros(HttpSecurity http, AuditoriaRepository auditoria, DispositivoRepository dispositivos,
+                                ObjectMapper json) throws Exception {
         http
             .csrf(c -> c.disable()) // API stateless con Bearer token, sin cookies
             .cors(c -> {})
@@ -53,7 +59,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/health", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .anyRequest().authenticated())
-            .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(convertidorRoles())));
+            .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(convertidorRoles())))
+            // Después de leer el token, para saber quién actuó; antes de autorizar, para registrar también los rechazos
+            .addFilterAfter(new FiltroAuditoria(auditoria, dispositivos, json), BearerTokenAuthenticationFilter.class);
         return http.build();
     }
 
