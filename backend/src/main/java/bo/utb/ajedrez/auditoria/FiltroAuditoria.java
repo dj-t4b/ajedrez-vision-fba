@@ -2,6 +2,8 @@ package bo.utb.ajedrez.auditoria;
 
 import bo.utb.ajedrez.comun.Secretos;
 import bo.utb.ajedrez.dispositivo.DispositivoRepository;
+import bo.utb.ajedrez.usuario.Rol;
+import bo.utb.ajedrez.usuario.UsuarioRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -62,11 +64,13 @@ public class FiltroAuditoria extends OncePerRequestFilter {
 
     private final AuditoriaRepository repo;
     private final DispositivoRepository dispositivos;
+    private final UsuarioRepository usuarios;
     private final ObjectMapper json;
 
-    public FiltroAuditoria(AuditoriaRepository repo, DispositivoRepository dispositivos, ObjectMapper json) {
+    public FiltroAuditoria(AuditoriaRepository repo, DispositivoRepository dispositivos, UsuarioRepository usuarios, ObjectMapper json) {
         this.repo = repo;
         this.dispositivos = dispositivos;
+        this.usuarios = usuarios;
         this.json = json;
     }
 
@@ -118,6 +122,11 @@ public class FiltroAuditoria extends OncePerRequestFilter {
             tipo = Auditoria.Tipo.ANONIMO;
         }
         if (ruta.equals("/api/dispositivo/vincular") && estado < 400) actor = "Celular nuevo";
+        if (ruta.equals("/api/auth/login") && estado < 400) {
+            String email = actor;
+            tipo = usuarios.findByEmail(email.trim().toLowerCase())
+                    .map(u -> u.getRol() == Rol.ADMIN ? Auditoria.Tipo.ADMIN : Auditoria.Tipo.USUARIO).orElse(tipo);
+        }
 
         repo.save(new Auditoria(actor, tipo, accion, metodo, req.getRequestURI(), estado, req.getRemoteAddr(), sinSecretos(cuerpo)));
     }

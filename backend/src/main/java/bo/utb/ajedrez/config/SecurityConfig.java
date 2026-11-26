@@ -3,6 +3,7 @@ package bo.utb.ajedrez.config;
 import bo.utb.ajedrez.auditoria.AuditoriaRepository;
 import bo.utb.ajedrez.auditoria.FiltroAuditoria;
 import bo.utb.ajedrez.dispositivo.DispositivoRepository;
+import bo.utb.ajedrez.usuario.UsuarioRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
@@ -47,7 +48,7 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain filtros(HttpSecurity http, AuditoriaRepository auditoria, DispositivoRepository dispositivos,
-                                ObjectMapper json) throws Exception {
+                                UsuarioRepository usuarios, ObjectMapper json) throws Exception {
         http
             .csrf(c -> c.disable()) // API stateless con Bearer token, sin cookies
             .cors(c -> {})
@@ -61,7 +62,7 @@ public class SecurityConfig {
                 .anyRequest().authenticated())
             .oauth2ResourceServer(o -> o.jwt(j -> j.jwtAuthenticationConverter(convertidorRoles())))
             // Después de leer el token, para saber quién actuó; antes de autorizar, para registrar también los rechazos
-            .addFilterAfter(new FiltroAuditoria(auditoria, dispositivos, json), BearerTokenAuthenticationFilter.class);
+            .addFilterAfter(new FiltroAuditoria(auditoria, dispositivos, usuarios, json), BearerTokenAuthenticationFilter.class);
         return http.build();
     }
 
