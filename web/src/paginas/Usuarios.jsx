@@ -5,7 +5,7 @@ import { useSesion } from '../sesion.jsx'
 import { useDatos } from '../componentes/useDatos.js'
 import { ROLES } from '../Estructura.jsx'
 
-const VACIO = { nombre: '', email: '', password: '', rol: 'ARBITRO', activo: true }
+const VACIO = { nombre: '', email: '', password: '', rol: 'USUARIO', activo: true }
 
 export default function Usuarios() {
   const { sesion } = useSesion()
@@ -30,7 +30,7 @@ export default function Usuarios() {
       <div className="cabecera">
         <div>
           <h1>Usuarios</h1>
-          <p>Árbitros registran partidas desde la app; jugadores solo consultan.</p>
+          <p>Cuentas del sistema. Los roles de organizador y árbitro se asignan en cada torneo.</p>
         </div>
         {!editando && <button className="primario" onClick={() => setEditando('nuevo')}><Plus size={18} aria-hidden /> Nuevo usuario</button>}
       </div>

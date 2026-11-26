@@ -193,3 +193,12 @@ input::placeholder { color: oklch(0.55 0.01 80); }
   *, *::before { animation: none !important; transition: none !important; }
 }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Jugadas: dudosas (confianza baja de la cámara) y corrección */
+.jugadas button.san { font: inherit; font-weight: 500; border: 1px solid transparent; background: none; padding: 2px 6px; margin: -3px -7px; border-radius: 4px; }
+.jugadas button.san:hover:not(:disabled) { border-color: var(--linea); background: var(--papel); }
+.jugadas .san.dudosa { background: oklch(0.95 0.07 85); color: oklch(0.42 0.1 70); border-radius: 4px; padding: 2px 6px; margin: -3px -7px; }
+.jugadas .san.dudosa .origen { color: oklch(0.55 0.13 70); }
+.jugadas .san.activa { outline: 2px solid var(--acento); outline-offset: 1px; }
+.aviso-correccion { display: flex; gap: 8px; align-items: center; justify-content: space-between; background: var(--acento-suave); color: var(--acento-hover); border-radius: var(--radio); padding: 10px 12px; font-size: 0.9375rem; }
+.filtros button[aria-selected="true"] { background: var(--tinta); color: white; border-color: var(--tinta); }

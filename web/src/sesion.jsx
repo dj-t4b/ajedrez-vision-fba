@@ -23,4 +23,3 @@ export function ProveedorSesion({ children }) {
 
 export const useSesion = () => useContext(Ctx)
 
-export const puedeRegistrar = (s) => s?.rol === 'ADMIN' || s?.rol === 'ARBITRO'

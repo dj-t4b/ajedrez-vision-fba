@@ -2,12 +2,14 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { api } from '../api.js'
-import { puedeRegistrar, useSesion } from '../sesion.jsx'
+import { useSesion } from '../sesion.jsx'
 import { useDatos } from '../componentes/useDatos.js'
+import { ROLES_TORNEO } from '../Estructura.jsx'
 
 const VACIO = { nombre: '', categoria: '', ciudad: '', fechaInicio: '' }
 const dia = (f) => (f ? new Date(f + 'T00:00').toLocaleDateString('es-BO') : '–')
 
+/** Solo el administrador crea y elimina torneos; el organizador edita los datos del suyo. */
 export default function Torneos() {
   const { sesion } = useSesion()
   const navegar = useNavigate()
@@ -15,7 +17,9 @@ export default function Torneos() {
   const [editando, setEditando] = useState(null) // null | 'nuevo' | torneo
   const [borrando, setBorrando] = useState(null)
   const [errorAccion, setErrorAccion] = useState('')
-  const gestiona = puedeRegistrar(sesion)
+  const esAdmin = sesion.rol === 'ADMIN'
+  const puedeEditar = (t) => esAdmin || t.miRol === 'ORGANIZADOR'
+  const conAcciones = esAdmin || torneos?.some(puedeEditar)
 
   async function eliminar(t) {
     setErrorAccion('')
@@ -34,9 +38,9 @@ export default function Torneos() {
       <div className="cabecera">
         <div>
           <h1>Torneos</h1>
-          <p>Cada torneo agrupa sus partidas. Puede haber varios a la vez, por ejemplo uno por categoría.</p>
+          <p>Cada torneo tiene su equipo, sus mesas y sus partidas. Puede haber varios a la vez, por ejemplo uno por categoría.</p>
         </div>
-        {gestiona && !editando && <button className="primario" onClick={() => setEditando('nuevo')}><Plus size={18} aria-hidden /> Nuevo torneo</button>}
+        {esAdmin && !editando && <button className="primario" onClick={() => setEditando('nuevo')}><Plus size={18} aria-hidden /> Nuevo torneo</button>}
       </div>
 
       {editando && (
@@ -50,11 +54,13 @@ export default function Torneos() {
       {(error || errorAccion) && <div className="error" role="alert" style={{ marginBottom: 16 }}>{error || errorAccion}</div>}
 
       {torneos?.length === 0 ? (
-        <div className="vacio">Todavía no hay torneos.{gestiona && ' Cree el primero con «Nuevo torneo».'}</div>
+        <div className="vacio">
+          {esAdmin ? 'Todavía no hay torneos. Cree el primero con «Nuevo torneo».' : 'Todavía no tiene un rol en ningún torneo. Pídaselo al organizador o al árbitro principal.'}
+        </div>
       ) : (
         <table className="tabla">
           <thead>
-            <tr><th>Torneo</th><th>Categoría</th><th>Ciudad</th><th>Inicio</th><th>Partidas</th>{gestiona && <th><span className="sr-only">Acciones</span></th>}</tr>
+            <tr><th>Torneo</th><th>Categoría</th><th>Ciudad</th><th>Inicio</th><th>Partidas</th><th>Mi rol</th>{conAcciones && <th><span className="sr-only">Acciones</span></th>}</tr>
           </thead>
           <tbody>
             {torneos?.map((t) => (
@@ -67,7 +73,8 @@ export default function Torneos() {
                   {t.partidas}
                   {t.enCurso > 0 && <span className="etiqueta vivo" style={{ marginLeft: 8 }}>{t.enCurso} en curso</span>}
                 </td>
-                {gestiona && (
+                <td className="secundario">{ROLES_TORNEO[t.miRol]}</td>
+                {conAcciones && (
                   <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
                     {borrando === t.id ? (
                       <>
@@ -77,10 +84,8 @@ export default function Torneos() {
                       </>
                     ) : (
                       <>
-                        <button className="fantasma" onClick={() => setEditando(t)} aria-label={`Editar ${t.nombre}`}><Pencil size={16} aria-hidden /></button>
-                        {sesion.rol === 'ADMIN' && (
-                          <button className="fantasma peligro" onClick={() => setBorrando(t.id)} aria-label={`Eliminar ${t.nombre}`}><Trash2 size={16} aria-hidden /></button>
-                        )}
+                        {puedeEditar(t) && <button className="fantasma" onClick={() => setEditando(t)} aria-label={`Editar ${t.nombre}`}><Pencil size={16} aria-hidden /></button>}
+                        {esAdmin && <button className="fantasma peligro" onClick={() => setBorrando(t.id)} aria-label={`Eliminar ${t.nombre}`}><Trash2 size={16} aria-hidden /></button>}
                       </>
                     )}
                   </td>
@@ -95,7 +100,9 @@ export default function Torneos() {
 }
 
 function FormTorneo({ torneo, onCancelar, onGuardado }) {
-  const [f, setF] = useState(torneo ? { ...VACIO, ...Object.fromEntries(Object.entries(torneo).map(([k, v]) => [k, v ?? ''])) } : VACIO)
+  const [f, setF] = useState(torneo
+    ? { nombre: torneo.nombre, categoria: torneo.categoria ?? '', ciudad: torneo.ciudad ?? '', fechaInicio: torneo.fechaInicio ?? '' }
+    : VACIO)
   const [error, setError] = useState('')
   const [enviando, setEnviando] = useState(false)
   const campo = (k) => ({ value: f[k], onChange: (e) => setF({ ...f, [k]: e.target.value }) })

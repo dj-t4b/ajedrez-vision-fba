@@ -3,7 +3,9 @@ import { LayoutDashboard, LogOut, Swords, Trophy, Users } from 'lucide-react'
 import { useSesion } from './sesion.jsx'
 import Marca from './componentes/Marca.jsx'
 
-const ROLES = { ADMIN: 'Administrador', ARBITRO: 'Árbitro', JUGADOR: 'Jugador' }
+const ROLES = { ADMIN: 'Administrador', USUARIO: 'Usuario' }
+/** Roles dentro de un torneo. */
+const ROLES_TORNEO = { ADMIN: 'Administrador', ORGANIZADOR: 'Organizador', ARBITRO_PRINCIPAL: 'Árbitro principal', ARBITRO: 'Árbitro' }
 
 export default function Estructura() {
   const { sesion, salir } = useSesion()
@@ -33,4 +35,4 @@ export default function Estructura() {
   )
 }
 
-export { ROLES }
+export { ROLES, ROLES_TORNEO }
