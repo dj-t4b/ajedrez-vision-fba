@@ -17,7 +17,7 @@ flowchart LR
 |---|---|
 | `backend/` | API REST Spring Boot 3.5 empaquetada como `.war` para WildFly 41. JWT, Swagger/OpenAPI, Flyway, logs SLF4J, reportes PDF (OpenPDF) y Excel (Apache POI). |
 | `web/` | Panel React + Vite: login, panel en vivo, partidas con tablero, CRUD de usuarios. |
-| `android/` | App Kotlin con CameraX y OpenCV (en construcción). |
+| `android/` | App Kotlin con CameraX y OpenCV. Se compila desde la terminal, sin Android Studio. |
 | `docs/` | UML: [casos de uso](docs/casos-de-uso.md), [clases](docs/clases.md), [entidad-relación](docs/er.md). |
 | `tasks/` | Plan y tareas por sprint. |
 
@@ -68,6 +68,23 @@ npm run dev
 ```
 
 Abrir http://localhost:5173. Vite reenvía `/ajedrez` al WildFly local.
+
+## App Android (sin Android Studio)
+
+Requisitos: JDK 17 o superior y las herramientas de línea de comandos del SDK de Android con las licencias aceptadas (`sdkmanager --licenses`). Crear `android/local.properties` con la ruta del SDK, por ejemplo `sdk.dir=C\:/Users/USUARIO/Android/Sdk`.
+
+```powershell
+cd android
+.\gradlew.bat testDebugUnitTest assembleDebug
+```
+
+Con el celular conectado por USB y la depuración USB activada:
+
+```powershell
+adb install -r app\build\outputs\apk\debug\app-debug.apk
+```
+
+En la app, el servidor es `http://IP-DEL-PC:8080/ajedrez` (celular y PC en la misma red Wi-Fi). Uso: elegir una partida en curso, fijar el celular sobre el tablero, tocar «Calibrar» y marcar las esquinas a8, h8, h1, a1. Después de cada jugada, tocar «Registrar jugada». Una pulsación larga muestra las jugadas candidatas para elegir a mano.
 
 ## Pruebas
 

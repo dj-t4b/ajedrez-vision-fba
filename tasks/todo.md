@@ -1,9 +1,9 @@
 # Tareas
 
 ## Sprint 0: Entorno y repo
-- [ ] T0.1 Instalar lo que falta (Docker Desktop + WSL2, Android Studio, GitHub CLI; opcional JDK 21). Verificación: `docker run hello-world`, `gh --version`, Android Studio abre.
+- [x] T0.1 Instalar lo que falta (Docker Desktop + WSL2, Android Studio, GitHub CLI; opcional JDK 21). Verificación: `docker run hello-world`, `gh --version`, Android Studio abre.
 - [x] T0.2 Repo git local con `.gitignore`, README y estructura. Verificación: `git log` muestra el commit inicial.
-- [ ] T0.3 Crear repo en GitHub y hacer push. Verificación: el repo se ve en github.com.
+- [x] T0.3 Crear repo en GitHub y hacer push. Verificación: el repo se ve en github.com.
 
 ## Sprint 1: Backend + Docker
 - [x] T1.1 Esqueleto Spring Boot `.war` con endpoint `/api/health`. Verificación: `mvn package` y despliegue en WildFly devuelve 200.
@@ -23,9 +23,9 @@
 ### Checkpoint 2: flujo web completo
 
 ## Sprint 3: Android + visión
-- [ ] T3.1 App Kotlin con login (Retrofit) y CameraX. Verificación: login desde el teléfono.
-- [ ] T3.2 Detección del tablero y rejilla 8x8 con OpenCV. Verificación: fotos de prueba con la rejilla dibujada.
-- [ ] T3.3 Deducción de jugada por diferencia de ocupación + jugadas legales. Verificación: test unitario con posiciones conocidas.
+- [ ] T3.1 App Kotlin con login (Retrofit) y CameraX. Verificación: login desde el teléfono. (compila; falta probar en el celular)
+- [ ] T3.2 Detección del tablero y rejilla 8x8 con OpenCV. Verificación: fotos de prueba con la rejilla dibujada. (calibración manual de 4 esquinas hecha; falta probar en el celular)
+- [x] T3.3 Deducción de jugada por diferencia de ocupación + jugadas legales. Verificación: test unitario con posiciones conocidas.
 - [ ] T3.4 Envío de jugada a la API + corrección manual. Verificación: la jugada aparece en la web.
 
 ### Checkpoint 3: demo de punta a punta (foto → jugada → web)
