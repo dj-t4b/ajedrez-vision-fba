@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
@@ -27,6 +28,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import org.opencv.android.OpenCVLoader
 import org.opencv.core.Mat
+import java.io.File
 
 /**
  * Pantalla del árbitro: el celular queda fijo (inclinado) frente al tablero. El tablero se ubica solo
@@ -68,6 +70,14 @@ class CamaraActivity : ComponentActivity() {
             marcas.limpiar()
             soltarReferencias()
             estado.text = "Toque las 4 esquinas de las casillas en orden: a8, h8, h1, a1."
+        }
+        // Pulsación larga: volver a buscar el tablero automáticamente
+        findViewById<Button>(R.id.calibrar).setOnLongClickListener {
+            calibrando = false
+            marcas.limpiar()
+            soltarReferencias()
+            estado.text = "Buscando el tablero en posición inicial…"
+            true
         }
         findViewById<Button>(R.id.jugada).setOnClickListener { leerJugada(elegirSiempre = false) }
         findViewById<Button>(R.id.jugada).setOnLongClickListener { leerJugada(elegirSiempre = true); true }
@@ -112,7 +122,11 @@ class CamaraActivity : ComponentActivity() {
             if (calibrando || referencia != null || buscando) continue
             val foto = vista.bitmap ?: continue
             buscando = true
-            val encontradas = withContext(Dispatchers.Default) { runCatching { Vision.buscarTablero(foto) }.getOrNull() }
+            val encontradas = withContext(Dispatchers.Default) {
+                guardar(foto, "intento.jpg")
+                runCatching { Vision.buscarTablero(foto) }.onFailure { Log.e("Ajedrez", "detección", it) }.getOrNull()
+            }
+            Log.i("Ajedrez", "detección automática: $encontradas")
             // sigue "ocupado" hasta que se tome la referencia
             buscando = encontradas != null && !calibrando && referencia == null
             if (buscando) {
@@ -120,6 +134,11 @@ class CamaraActivity : ComponentActivity() {
                 tomarReferencia("Tablero detectado.")
             }
         }
+    }
+
+    /** Guarda la imagen que analiza la app (para revisar la detección desde el PC con adb pull). */
+    private fun guardar(foto: Bitmap, nombre: String) = runCatching {
+        File(getExternalFilesDir(null), nombre).outputStream().use { foto.compress(Bitmap.CompressFormat.JPEG, 90, it) }
     }
 
     private fun tomarReferencia(motivo: String) {

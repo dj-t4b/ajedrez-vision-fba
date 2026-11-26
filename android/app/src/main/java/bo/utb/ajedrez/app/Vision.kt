@@ -3,7 +3,9 @@ package bo.utb.ajedrez.app
 import android.graphics.Bitmap
 import bo.utb.ajedrez.app.Geometria.P
 import org.opencv.android.Utils
-import org.opencv.calib3d.Calib3d
+import org.opencv.core.CvType
+import org.opencv.core.MatOfPoint
+import org.opencv.core.Scalar
 import org.opencv.core.Core
 import org.opencv.core.Mat
 import org.opencv.core.MatOfDouble
@@ -22,10 +24,11 @@ object Vision {
 
     /**
      * Ubica un tablero estándar en la posición inicial, sin marcadores:
-     * 1. busca el cuadriculado vacío del centro (7x3 cruces entre las filas 3 a 6);
-     * 2. lo extiende a las 8 filas probando cada desplazamiento posible y se queda con el que deja
-     *    piezas arriba y abajo y el centro vacío;
-     * 3. decide de qué lado están las blancas y dónde está la columna a ([Geometria.orientar]).
+     * 1. contorno exterior: el cuadrilátero convexo más grande de la imagen (el marco contra la mesa);
+     * 2. se endereza ese contorno y se busca el ancho del marco a cada lado con el que 9 líneas
+     *    igualmente espaciadas calzan con los bordes de las casillas;
+     * 3. con las piezas se decide en qué eje están las filas, de qué lado están las blancas y
+     *    dónde está la columna a ([Geometria.orientar]).
      * @return esquinas a8, h8, h1, a1 en coordenadas de la foto, o null si no se encontró
      */
     fun buscarTablero(foto: Bitmap): List<P>? {
@@ -33,39 +36,77 @@ object Vision {
         val escala = ANCHO_BUSQUEDA / gris.cols()
         val chico = Mat()
         Imgproc.resize(gris, chico, Size(), escala, escala, Imgproc.INTER_AREA)
+        try {
+            val exterior = contornoExterior(chico) ?: return null
+            val juego = areaDeJuego(chico, exterior).map { P(it.x / escala, it.y / escala) }
 
-        val cruces = Mat()
-        val hallado = Calib3d.findChessboardCornersSB(chico, Size(7.0, 3.0), cruces,
-            Calib3d.CALIB_CB_EXHAUSTIVE or Calib3d.CALIB_CB_ACCURACY)
-        if (!hallado || cruces.rows() != 21) {
-            gris.release(); chico.release(); cruces.release()
-            return null
-        }
-        // Cruce (c, r) del patrón = punto (c + 1, r) de la cuadrícula del tablero, en la foto original
-        val enFoto = MatOfPoint2f(*Array(21) { i -> cruces.get(i, 0).let { Point(it[0] / escala, it[1] / escala) } })
-        val enPatron = MatOfPoint2f(*Array(21) { i -> Point((i % 7 + 1).toDouble(), (i / 7).toDouble()) })
-        val h = Calib3d.findHomography(enPatron, enFoto)
-        chico.release(); cruces.release(); enFoto.release(); enPatron.release()
-
-        var mejor: Pair<List<P>, DoubleArray>? = null
-        var mejorPuntaje = Double.NEGATIVE_INFINITY
-        for (desplazamiento in 1..5) {
-            val o = desplazamiento.toDouble()
-            val esquinas = proyectar(h, listOf(Point(0.0, -o), Point(8.0, -o), Point(8.0, 8 - o), Point(0.0, 8 - o)))
-            if (esquinas.any { it.x < 0 || it.y < 0 || it.x > gris.cols() || it.y > gris.rows() }) continue
-            val plano = enderezarGris(gris, esquinas)
-            val (medias, desviaciones) = estadisticas(plano)
-            plano.release()
-            val p = Geometria.puntajeInicial(desviaciones)
-            if (p > mejorPuntaje) {
-                mejorPuntaje = p
-                mejor = esquinas to medias
+            // Filas en un eje u otro: el candidato girado 90° es la misma lista de esquinas rotada una posición
+            var esquinas = juego
+            var (medias, desv) = estadisticas(enderezarGris(gris, esquinas), liberar = true)
+            val girado = juego.drop(1) + juego.first()
+            val (mediasG, desvG) = estadisticas(enderezarGris(gris, girado), liberar = true)
+            if (Geometria.puntajeInicial(desvG) > Geometria.puntajeInicial(desv)) {
+                esquinas = girado; medias = mediasG; desv = desvG
             }
+            if (Geometria.puntajeInicial(desv) <= 0) return null // no parece la posición inicial
+            return Geometria.orientar(medias).map { esquinas[it] }
+        } finally {
+            gris.release(); chico.release()
         }
-        gris.release(); h.release()
-        val (esquinas, medias) = mejor ?: return null
-        if (mejorPuntaje <= 0) return null // no parece la posición inicial
-        return Geometria.orientar(medias).map { esquinas[it] }
+    }
+
+    /** El cuadrilátero convexo más grande (al menos 8 % de la imagen), en orden TL, TR, BR, BL. */
+    private fun contornoExterior(gris: Mat): List<P>? {
+        val bordes = Mat()
+        Imgproc.GaussianBlur(gris, bordes, Size(5.0, 5.0), 0.0)
+        Imgproc.Canny(bordes, bordes, 50.0, 150.0)
+        Imgproc.dilate(bordes, bordes, Mat.ones(3, 3, CvType.CV_8U))
+        val contornos = mutableListOf<MatOfPoint>()
+        Imgproc.findContours(bordes, contornos, Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
+        bordes.release()
+        val minimo = 0.08 * gris.rows() * gris.cols()
+        val res = contornos.sortedByDescending { Imgproc.contourArea(it) }.take(5).firstNotNullOfOrNull { c ->
+            val c2 = MatOfPoint2f(*c.toArray())
+            val aprox = MatOfPoint2f()
+            Imgproc.approxPolyDP(c2, aprox, 0.02 * Imgproc.arcLength(c2, true), true)
+            val pts = aprox.toArray()
+            val ok = pts.size == 4 && Imgproc.isContourConvex(MatOfPoint(*pts)) && Imgproc.contourArea(aprox) > minimo
+            c2.release(); aprox.release()
+            if (ok) Geometria.ordenar(pts.map { P(it.x, it.y) }) else null
+        }
+        contornos.forEach { it.release() }
+        return res
+    }
+
+    /** Dentro del contorno exterior, las 4 esquinas de las 64 casillas (sin el marco), en orden TL, TR, BR, BL. */
+    private fun areaDeJuego(gris: Mat, exterior: List<P>): List<P> {
+        val w = 640.0
+        val h = Imgproc.getPerspectiveTransform(puntos(exterior), cuadrado(w))
+        val plano = Mat()
+        Imgproc.warpPerspective(gris, plano, h, Size(w, w))
+        val perfilX = perfil(plano, dx = 1, dy = 0, eje = 0) // bordes verticales, sumados por columna
+        val perfilY = perfil(plano, dx = 0, dy = 1, eje = 1) // bordes horizontales, sumados por fila
+        plano.release()
+        val maxMargen = (0.15 * w).toInt()
+        val (izq, der) = Geometria.ajustarLineas(perfilX, maxMargen)
+        val (arr, aba) = Geometria.ajustarLineas(perfilY, maxMargen)
+        val n = perfilX.size - 1.0
+        val inversa = h.inv()
+        h.release()
+        return proyectar(inversa, listOf(Point(izq.toDouble(), arr.toDouble()), Point(n - der, arr.toDouble()),
+            Point(n - der, n - aba), Point(izq.toDouble(), n - aba))).also { inversa.release() }
+    }
+
+    private fun perfil(plano: Mat, dx: Int, dy: Int, eje: Int): DoubleArray {
+        val g = Mat()
+        Imgproc.Sobel(plano, g, CvType.CV_32F, dx, dy, 3)
+        Core.absdiff(g, Scalar(0.0), g)
+        val suma = Mat()
+        Core.reduce(g, suma, eje, Core.REDUCE_SUM, CvType.CV_64F)
+        val n = (suma.total()).toInt()
+        val res = DoubleArray(n) { i -> if (eje == 0) suma.get(0, i)[0] else suma.get(i, 0)[0] }
+        g.release(); suma.release()
+        return res
     }
 
     /** Endereza el tablero a un cuadrado visto desde arriba a partir de sus esquinas a8, h8, h1, a1. */
@@ -117,7 +158,7 @@ object Vision {
     }
 
     /** Gris medio y desviación de la parte central de cada casilla de un tablero enderezado. */
-    private fun estadisticas(plano: Mat): Pair<DoubleArray, DoubleArray> {
+    private fun estadisticas(plano: Mat, liberar: Boolean = false): Pair<DoubleArray, DoubleArray> {
         val m = CASILLA / 5
         val medias = DoubleArray(64)
         val desv = DoubleArray(64)
@@ -131,6 +172,7 @@ object Vision {
             zona.release()
         }
         media.release(); sd.release()
+        if (liberar) plano.release()
         return medias to desv
     }
 

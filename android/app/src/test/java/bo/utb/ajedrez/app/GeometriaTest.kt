@@ -57,6 +57,21 @@ class GeometriaTest {
         assertArrayEquals(intArrayOf(1, 0, 3, 2), Geometria.orientar(espejar(inicialNormal())))
     }
 
+    @Test fun ajustarLineasEncuentraElMarco() {
+        // Tablero enderezado de 641 px con marco de 40 px a la izquierda y 25 a la derecha
+        val perfil = DoubleArray(641) { 1.0 }
+        val paso = (640 - 40 - 25) / 8.0
+        for (k in 0..8) perfil[Math.round(40 + k * paso).toInt()] = 50.0
+        perfil[0] = 80.0; perfil[640] = 80.0 // el borde exterior también es fuerte
+        perfil[300] = 60.0 // borde suelto de una pieza
+        assertEquals(40 to 25, Geometria.ajustarLineas(perfil, 96))
+    }
+
+    @Test fun ordenarEsquinas() {
+        val desordenadas = listOf(trapecio[2], trapecio[0], trapecio[3], trapecio[1])
+        assertEquals(trapecio, Geometria.ordenar(desordenadas))
+    }
+
     @Test fun puntajeInicialPrefiereElCentroVacio() {
         val desv = DoubleArray(64) { i -> if (i / 8 in 2..5) 3.0 else 25.0 }
         val corrida = DoubleArray(64) { i -> if (i / 8 in 3..6) 3.0 else 25.0 } // candidato desplazado una fila

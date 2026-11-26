@@ -37,6 +37,30 @@ object Geometria {
         Lado.DERECHA -> doubleArrayOf(0.45, 0.2, 0.9, 0.8)
     }
 
+    /**
+     * Ancho del marco a cada lado del tablero enderezado: busca los márgenes (a, b) con los que 9 líneas
+     * igualmente espaciadas entre a y largo-b caen sobre los bordes de las casillas.
+     * @param perfil fuerza de borde acumulada en cada posición (columna o fila) del tablero enderezado
+     * @return margen inicial y final, en píxeles
+     */
+    fun ajustarLineas(perfil: DoubleArray, maxMargen: Int): Pair<Int, Int> {
+        val n = perfil.size
+        // suavizado triangular: tolera líneas a 1-2 px pero mantiene el máximo en la línea exacta
+        val p = DoubleArray(n) { i -> (-2..2).sumOf { d -> if (i + d in 0 until n) perfil[i + d] * (3 - Math.abs(d)) else 0.0 } }
+        var mejor = Triple(0, 0, Double.NEGATIVE_INFINITY)
+        for (a in 0 until maxMargen) for (b in 0 until maxMargen) {
+            val paso = (n - 1 - a - b) / 8.0
+            val puntaje = (0..8).sumOf { k -> p[Math.round(a + k * paso).toInt()] }
+            if (puntaje > mejor.third) mejor = Triple(a, b, puntaje)
+        }
+        return mejor.first to mejor.second
+    }
+
+    /** Ordena 4 puntos como arriba-izq, arriba-der, abajo-der, abajo-izq. */
+    fun ordenar(ps: List<P>): List<P> = listOf(
+        ps.minBy { it.x + it.y }, ps.minBy { it.y - it.x }, ps.maxBy { it.x + it.y }, ps.maxBy { it.y - it.x },
+    )
+
     /*
      * Detección automática en la posición inicial. Se trabaja sobre un tablero enderezado "candidato"
      * de 8x8 casillas (índice = fila * 8 + columna); las filas van en la dirección de las filas del
