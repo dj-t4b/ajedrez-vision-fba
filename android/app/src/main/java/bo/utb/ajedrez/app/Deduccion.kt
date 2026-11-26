@@ -4,6 +4,7 @@ import com.github.bhlangonijr.chesslib.Board
 import com.github.bhlangonijr.chesslib.PieceType
 import com.github.bhlangonijr.chesslib.Square
 import com.github.bhlangonijr.chesslib.move.Move
+import com.github.bhlangonijr.chesslib.move.MoveList
 
 /**
  * Deduce la jugada a partir de cuánto cambió cada casilla entre dos fotos del tablero.
@@ -14,7 +15,8 @@ import com.github.bhlangonijr.chesslib.move.Move
  */
 object Deduccion {
 
-    data class Candidata(val uci: String, val puntaje: Double)
+    /** @param san la jugada en notación algebraica (Cf3), para mostrarla al árbitro */
+    data class Candidata(val uci: String, val puntaje: Double, val san: String = uci)
 
     data class Resultado(val candidatas: List<Candidata>, val confianza: Double) {
         val mejor: Candidata? get() = candidatas.firstOrNull()
@@ -44,10 +46,23 @@ object Deduccion {
         val segundoMayor = cambios.sortedDescending()[1]
         if (candidatas.isEmpty() || segundoMayor < UMBRAL_MOVIMIENTO) return Resultado(emptyList(), 0.0)
 
+        // Confianza: cuánto le gana la mejor a la segunda comparado con el ruido de la cámara (la
+        // dispersión de las casillas quietas). No se divide por el puntaje de la mejor: jugadas que
+        // comparten la casilla de origen (Cf3, Ce2, Ch3) tienen puntajes parecidos sin ser dudosas.
         val p1 = candidatas[0].puntaje
         val p2 = candidatas.getOrNull(1)?.puntaje ?: 0.0
-        val confianza = if (p1 <= 0) 0.0 else ((p1 - p2.coerceAtLeast(0.0)) / p1).coerceIn(0.0, 1.0)
-        return Resultado(candidatas.take(5), confianza)
+        val quietas = cambios.sorted().take(48)
+        val media = quietas.average()
+        val sigma = Math.sqrt(quietas.sumOf { (it - media) * (it - media) } / quietas.size).coerceAtLeast(1.0)
+        val confianza = if (p1 <= 0) 0.0 else (1 - Math.exp(-(p1 - p2) / (4 * sigma))).coerceIn(0.0, 1.0)
+        return Resultado(conSan(fen, candidatas.take(5)), confianza)
+    }
+
+    private fun conSan(fen: String, cs: List<Candidata>): List<Candidata> = cs.map { c ->
+        val b = Board().apply { loadFromFen(fen) }
+        val m = b.legalMoves().first { uci(it) == c.uci }
+        val ml = MoveList(fen).apply { add(m) }
+        c.copy(san = ml.toSanArray()[0].replace('N', 'C').replace('B', 'A').replace('R', 'T').replace('Q', 'D').replace('K', 'R'))
     }
 
     private fun casillasAfectadas(b: Board, m: Move): List<Square> {

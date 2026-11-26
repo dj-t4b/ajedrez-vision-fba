@@ -206,10 +206,10 @@ class CamaraActivity : ComponentActivity() {
             return
         }
         // Confianza baja: el árbitro elige entre las jugadas más probables
-        val opciones = r.candidatas.map { it.uci }.toTypedArray()
+        val etiquetas = r.candidatas.mapIndexed { i, c -> if (i == 0) "${c.san}   (más probable)" else c.san }.toTypedArray()
         AlertDialog.Builder(this)
             .setTitle("¿Cuál fue la jugada? (confianza ${(r.confianza * 100).toInt()}%)")
-            .setItems(opciones) { _, i -> enviar(opciones[i], r.confianza, actual) }
+            .setItems(etiquetas) { _, i -> enviar(r.candidatas[i].uci, r.confianza, actual) }
             .setNegativeButton("Ninguna") { _, _ -> actual.release() }
             .show()
     }

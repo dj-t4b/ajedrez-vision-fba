@@ -60,6 +60,29 @@ class DeduccionTest {
         assertEquals(0.0, r.confianza, 0.0)
     }
 
+    // Cambios medidos de verdad en la prueba 2 con el tablero de Daniel (fila 0 = rank 8)
+    private fun medidos(vararg filas: String) = filas.flatMap { f -> f.trim().split(Regex("\\s+")).map { it.toDouble() } }.toDoubleArray()
+
+    @Test fun pruebaRealE5SeRegistraSola() {
+        val c = medidos(
+            "4 3 6 5 5 2 4 3", "4 7 3 10 36 6 3 6", "6 5 7 6 11 6 7 6", "2 7 5 6 24 6 7 7",
+            "6 4 7 5 5 4 6 4", "3 6 8 7 5 6 5 6", "6 5 4 6 7 7 6 6", "8 4 5 4 4 5 6 6")
+        val r = Deduccion.deducir("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1", c)
+        assertEquals("e7e5", r.mejor?.uci)
+        assertEquals("e5", r.mejor?.san)
+        assertTrue("confianza ${r.confianza}", r.confianza >= 0.5)
+    }
+
+    @Test fun pruebaRealCaballoF3SeRegistraSola() {
+        val c = medidos(
+            "1 3 3 2 2 1 2 1", "2 5 2 3 1 2 1 3", "2 1 1 1 1 1 1 1", "5 1 1 1 1 1 1 1",
+            "3 1 2 1 3 1 1 1", "1 3 1 2 0 29 6 1", "4 5 7 5 1 4 4 5", "2 5 8 6 5 2 133 2")
+        val r = Deduccion.deducir("rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq e6 0 2", c)
+        assertEquals("g1f3", r.mejor?.uci)
+        assertEquals("Cf3", r.mejor?.san)
+        assertTrue("confianza ${r.confianza}", r.confianza >= 0.5)
+    }
+
     @Test fun indiceEsA8ArribaIzquierda() {
         assertEquals(0, Deduccion.indice(Square.A8))
         assertEquals(7, Deduccion.indice(Square.H8))
