@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus } from 'lucide-react'
-import { api } from '../api.js'
+import { FileSpreadsheet, FileText, Plus } from 'lucide-react'
+import { api, descargar } from '../api.js'
 import { puedeRegistrar, useSesion } from '../sesion.jsx'
 import { useDatos } from '../componentes/useDatos.js'
 
@@ -14,6 +14,16 @@ export default function Partidas() {
   const [estado, setEstado] = useState('')
   const { datos: partidas, error } = useDatos(`/api/partidas${estado ? `?estado=${estado}` : ''}`, 5000)
   const [creando, setCreando] = useState(false)
+  const [errorReporte, setErrorReporte] = useState('')
+
+  async function bajar(ruta, nombre) {
+    setErrorReporte('')
+    try {
+      await descargar(ruta, nombre)
+    } catch (e) {
+      setErrorReporte(e.message)
+    }
+  }
 
   return (
     <>
@@ -22,13 +32,17 @@ export default function Partidas() {
           <h1>Partidas</h1>
           <p>Las jugadas llegan desde la app Android o se cargan a mano en cada partida.</p>
         </div>
-        {puedeRegistrar(sesion) && !creando && (
-          <button className="primario" onClick={() => setCreando(true)}><Plus size={18} aria-hidden /> Nueva partida</button>
+        {puedeRegistrar(sesion) && (
+          <div className="barra-acciones">
+            <button onClick={() => bajar('/api/reportes/partidas.pdf', 'partidas.pdf')}><FileText size={16} aria-hidden /> PDF</button>
+            <button onClick={() => bajar('/api/reportes/partidas.xlsx', 'partidas.xlsx')}><FileSpreadsheet size={16} aria-hidden /> Excel</button>
+            {!creando && <button className="primario" onClick={() => setCreando(true)}><Plus size={18} aria-hidden /> Nueva partida</button>}
+          </div>
         )}
       </div>
 
       {creando && <NuevaPartida onCancelar={() => setCreando(false)} onCreada={(id) => navegar(`/partidas/${id}`)} />}
-      {error && <div className="error" role="alert">{error}</div>}
+      {(error || errorReporte) && <div className="error" role="alert">{error || errorReporte}</div>}
 
       <div className="filtros" role="group" aria-label="Filtrar por estado">
         {FILTROS.map(([valor, texto]) => (

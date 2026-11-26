@@ -22,6 +22,19 @@ export class ErrorApi extends Error {
   }
 }
 
+/** Descarga un archivo protegido (PDF/Excel) con el token y lo guarda con el nombre que manda el servidor. */
+export async function descargar(ruta, nombre) {
+  const sesion = leerSesion()
+  const res = await fetch(BASE + ruta, { headers: sesion ? { Authorization: `Bearer ${sesion.token}` } : {} })
+  if (!res.ok) throw new ErrorApi(res.status, `No se pudo generar el reporte (error ${res.status})`)
+  const url = URL.createObjectURL(await res.blob())
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nombre
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 /** fetch con el token de la sesión; lanza ErrorApi con el detalle del ProblemDetail del backend. */
 export async function api(ruta, { metodo = 'GET', cuerpo } = {}) {
   const sesion = leerSesion()

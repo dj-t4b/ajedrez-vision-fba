@@ -76,6 +76,18 @@ class FlujoApiTest {
         JsonNode dash = leer(mvc.perform(get("/api/dashboard").header("Authorization", "Bearer " + admin)).andExpect(status().isOk()));
         assert dash.at("/jugadasVision").asLong() == 3;
 
+        // Reportes: los genera el árbitro, no el jugador
+        byte[] pdf = mvc.perform(get("/api/reportes/partidas.pdf").header("Authorization", "Bearer " + arbitro))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+        assert new String(pdf, 0, 5).equals("%PDF-");
+        byte[] planilla = mvc.perform(get("/api/reportes/partidas/" + id + ".pdf").header("Authorization", "Bearer " + arbitro))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+        assert new String(planilla, 0, 5).equals("%PDF-");
+        byte[] xlsx = mvc.perform(get("/api/reportes/partidas.xlsx").header("Authorization", "Bearer " + arbitro))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+        assert xlsx[0] == 'P' && xlsx[1] == 'K'; // zip
+        mvc.perform(get("/api/reportes/partidas.pdf").header("Authorization", "Bearer " + jugador)).andExpect(status().isForbidden());
+
         // No se puede borrar al único admin
         long adminId = leer(mvc.perform(get("/api/auth/yo").header("Authorization", "Bearer " + admin))).at("/id").asLong();
         llamar(delete("/api/usuarios/" + adminId), admin, null).andExpect(status().isUnprocessableEntity());

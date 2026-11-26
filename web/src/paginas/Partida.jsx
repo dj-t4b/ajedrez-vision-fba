@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Camera, Copy, Hand, Undo2 } from 'lucide-react'
-import { api } from '../api.js'
+import { ArrowLeft, Camera, Copy, FileText, Hand, Undo2 } from 'lucide-react'
+import { api, descargar } from '../api.js'
 import { puedeRegistrar, useSesion } from '../sesion.jsx'
 import { useDatos } from '../componentes/useDatos.js'
 import Tablero from '../componentes/Tablero.jsx'
@@ -91,6 +91,9 @@ export default function Partida() {
             <div className="barra-acciones">
               <button onClick={() => accion(`/api/partidas/${id}/jugadas/ultima`, 'DELETE')} disabled={ocupado || jugadas.length === 0}>
                 <Undo2 size={16} aria-hidden /> Deshacer última
+              </button>
+              <button onClick={() => descargar(`/api/reportes/partidas/${id}.pdf`, `planilla-${id}.pdf`).catch((e) => setError(e.message))}>
+                <FileText size={16} aria-hidden /> Planilla PDF
               </button>
               {enCurso && (
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

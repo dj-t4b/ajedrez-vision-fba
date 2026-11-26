@@ -125,7 +125,7 @@ public class PartidaService {
                 p.getJugadas().stream().map(JugadaResponse::de).toList(), pgn(p));
     }
 
-    static String pgn(Partida p) {
+    public static String pgn(Partida p) {
         StringBuilder sb = new StringBuilder();
         List<Jugada> js = p.getJugadas();
         for (int i = 0; i < js.size(); i++) {
