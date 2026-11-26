@@ -4,7 +4,6 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.content.pm.PackageManager
-import android.graphics.PointF
 import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
@@ -12,12 +11,17 @@ import android.widget.Button
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.lifecycle.lifecycleScope
+import bo.utb.ajedrez.app.Geometria.P
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -25,8 +29,9 @@ import org.opencv.android.OpenCVLoader
 import org.opencv.core.Mat
 
 /**
- * Pantalla del árbitro: el celular queda fijo sobre el tablero. Se calibra una vez marcando
- * las 4 esquinas; después de cada jugada se toca "Registrar jugada" y la app deduce cuál fue.
+ * Pantalla del árbitro: el celular queda fijo (inclinado) frente al tablero. El tablero se ubica solo
+ * en la posición inicial (sin marcadores); si no lo encuentra, se calibra tocando las 4 esquinas.
+ * Después de cada jugada se toca "Registrar jugada" y la app deduce cuál fue.
  */
 class CamaraActivity : ComponentActivity() {
 
@@ -34,11 +39,13 @@ class CamaraActivity : ComponentActivity() {
     private lateinit var vista: PreviewView
     private lateinit var marcas: Marcas
     private lateinit var estado: TextView
+    private var camara: Camera? = null
     private var partidaId = 0L
     private var fen = ""
     private var referencia: Mat? = null          // tablero enderezado de la última posición confirmada
     private var referenciaAnterior: Mat? = null  // para volver atrás si se deshace una jugada
     private var calibrando = false
+    private var buscando = false
 
     private val pedirCamara = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         if (ok) iniciarCamara() else estado.text = "Sin permiso de cámara no se pueden leer jugadas."
@@ -59,8 +66,8 @@ class CamaraActivity : ComponentActivity() {
         findViewById<Button>(R.id.calibrar).setOnClickListener {
             calibrando = true
             marcas.limpiar()
-            referencia = null
-            estado.text = "Toque las 4 esquinas del tablero en orden: a8, h8, h1, a1."
+            soltarReferencias()
+            estado.text = "Toque las 4 esquinas de las casillas en orden: a8, h8, h1, a1."
         }
         findViewById<Button>(R.id.jugada).setOnClickListener { leerJugada(elegirSiempre = false) }
         findViewById<Button>(R.id.jugada).setOnLongClickListener { leerJugada(elegirSiempre = true); true }
@@ -68,13 +75,12 @@ class CamaraActivity : ComponentActivity() {
 
         marcas.setOnTouchListener { _, e ->
             if (calibrando && e.action == MotionEvent.ACTION_UP) {
-                marcas.esquinas += PointF(e.x, e.y)
+                marcas.esquinas += P(e.x.toDouble(), e.y.toDouble())
                 marcas.invalidate()
                 if (marcas.esquinas.size == 4) {
                     calibrando = false
-                    referencia = capturar()
-                    estado.text = if (referencia == null) "No se pudo capturar la imagen; calibre de nuevo."
-                    else "Listo. Después de cada jugada toque «Registrar jugada»."
+                    marcas.ubicar(marcas.esquinas.toList())
+                    tomarReferencia("Calibrado a mano.")
                 }
             }
             true
@@ -83,6 +89,7 @@ class CamaraActivity : ComponentActivity() {
         if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) iniciarCamara()
         else pedirCamara.launch(Manifest.permission.CAMERA)
         cargarPartida()
+        buscarTableroAuto()
     }
 
     private fun iniciarCamara() {
@@ -91,14 +98,59 @@ class CamaraActivity : ComponentActivity() {
             val proveedor = futuro.get()
             val preview = Preview.Builder().build().also { it.surfaceProvider = vista.surfaceProvider }
             proveedor.unbindAll()
-            proveedor.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview)
+            camara = proveedor.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview)
         }, mainExecutor)
+    }
+
+    /**
+     * Mientras el tablero no esté ubicado, lo busca en el video cada 0,7 s. Necesita la posición inicial
+     * (centro vacío); una vez ubicado, el celular debe quedar quieto.
+     */
+    private fun buscarTableroAuto() = lifecycleScope.launch {
+        while (isActive) {
+            delay(700)
+            if (calibrando || referencia != null || buscando) continue
+            val foto = vista.bitmap ?: continue
+            buscando = true
+            val encontradas = withContext(Dispatchers.Default) { runCatching { Vision.buscarTablero(foto) }.getOrNull() }
+            // sigue "ocupado" hasta que se tome la referencia
+            buscando = encontradas != null && !calibrando && referencia == null
+            if (buscando) {
+                marcas.ubicar(encontradas!!)
+                tomarReferencia("Tablero detectado.")
+            }
+        }
+    }
+
+    private fun tomarReferencia(motivo: String) {
+        bloquearEnfoque()
+        // Espera a que el enfoque y la exposición se asienten antes de la foto de referencia.
+        lifecycleScope.launch {
+            delay(800)
+            soltarReferencias()
+            referencia = capturar()
+            buscando = false
+            estado.text = if (referencia == null) "No se pudo capturar la imagen; calibre de nuevo."
+            else "$motivo Después de cada jugada toque «Registrar jugada»."
+        }
+    }
+
+    /** Fija enfoque y exposición en el centro del tablero para que no cambien entre una foto y otra. */
+    private fun bloquearEnfoque() {
+        val e = marcas.esquinas
+        if (e.size != 4) return
+        val punto = vista.meteringPointFactory.createPoint(e.map { it.x }.average().toFloat(), e.map { it.y }.average().toFloat())
+        camara?.cameraControl?.startFocusAndMetering(
+            FocusMeteringAction.Builder(punto, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
+                .disableAutoCancel()
+                .build()
+        )
     }
 
     private fun cargarPartida() = lifecycleScope.launch {
         try {
             mostrar(withContext(Dispatchers.IO) { api.partida(partidaId) })
-            if (referencia == null) estado.text = "${estado.text}\nToque «Calibrar» con el celular fijo sobre el tablero."
+            if (referencia == null) estado.text = "${estado.text}\nBuscando el tablero en posición inicial… o toque «Calibrar»."
         } catch (e: ErrorApi) {
             estado.text = e.message
         }
@@ -106,13 +158,14 @@ class CamaraActivity : ComponentActivity() {
 
     private fun capturar(): Mat? {
         val foto = vista.bitmap ?: return null
+        if (marcas.esquinas.size != 4) return null
         return Vision.enderezar(foto, marcas.esquinas)
     }
 
     private fun leerJugada(elegirSiempre: Boolean) {
-        val ref = referencia ?: run { estado.text = "Primero calibre el tablero."; return }
+        val ref = referencia ?: run { estado.text = "Todavía no se ubicó el tablero."; return }
         val actual = capturar() ?: run { estado.text = "La cámara todavía no tiene imagen."; return }
-        val cambios = Vision.cambios(ref, actual)
+        val cambios = Vision.cambios(ref, actual, Geometria.ladoCercano(marcas.esquinas))
         val r = Deduccion.deducir(fen, cambios)
         Log.i("Ajedrez", "candidatas=${r.candidatas} confianza=${r.confianza}")
 
@@ -151,7 +204,7 @@ class CamaraActivity : ComponentActivity() {
         try {
             mostrar(withContext(Dispatchers.IO) { api.deshacer(partidaId) })
             referenciaAnterior?.let { referencia?.release(); referencia = it; referenciaAnterior = null }
-            estado.text = "${estado.text}\nJugada deshecha. Toque largo en «Registrar jugada» para elegirla a mano."
+            estado.text = "${estado.text}\nDeshecha. Toque largo en «Registrar jugada» para elegirla."
         } catch (e: ErrorApi) {
             estado.text = e.message
         }
@@ -170,9 +223,13 @@ class CamaraActivity : ComponentActivity() {
         }
     }
 
+    private fun soltarReferencias() {
+        referencia?.release(); referencia = null
+        referenciaAnterior?.release(); referenciaAnterior = null
+    }
+
     override fun onDestroy() {
-        referencia?.release()
-        referenciaAnterior?.release()
+        soltarReferencias()
         super.onDestroy()
     }
 }

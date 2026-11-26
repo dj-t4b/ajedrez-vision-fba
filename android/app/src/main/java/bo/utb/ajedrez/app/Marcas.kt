@@ -4,18 +4,19 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.PointF
 import android.util.AttributeSet
 import android.view.View
+import bo.utb.ajedrez.app.Geometria.P
 
-/** Capa sobre la cámara: dibuja las esquinas marcadas y el contorno del tablero. */
+/** Capa sobre la cámara: esquinas marcadas a mano y, cuando el tablero está ubicado, su cuadrícula 8x8. */
 class Marcas(contexto: Context, attrs: AttributeSet?) : View(contexto, attrs) {
 
-    val esquinas = mutableListOf<PointF>()
+    val esquinas = mutableListOf<P>()
+    private var cuadricula: List<P> = emptyList()
     private val nombres = listOf("a8", "h8", "h1", "a1")
 
     private val linea = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(120, 220, 150); strokeWidth = 5f; style = Paint.Style.STROKE
+        color = Color.rgb(120, 220, 150); strokeWidth = 3f; style = Paint.Style.STROKE
     }
     private val punto = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(120, 220, 150) }
     private val texto = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -24,15 +25,32 @@ class Marcas(contexto: Context, attrs: AttributeSet?) : View(contexto, attrs) {
 
     fun limpiar() {
         esquinas.clear()
+        cuadricula = emptyList()
+        invalidate()
+    }
+
+    fun ubicar(nuevas: List<P>) {
+        esquinas.clear()
+        esquinas += nuevas
+        cuadricula = Vision.cuadricula(nuevas)
         invalidate()
     }
 
     override fun onDraw(c: Canvas) {
-        esquinas.forEachIndexed { i, p ->
-            c.drawCircle(p.x, p.y, 14f, punto)
-            c.drawText(nombres[i], p.x + 20, p.y - 20, texto)
-            if (i > 0) c.drawLine(esquinas[i - 1].x, esquinas[i - 1].y, p.x, p.y, linea)
+        if (cuadricula.size == 81) {
+            for (i in 0..8) {
+                val f = { col: Int -> cuadricula[i * 9 + col] }
+                val k = { fila: Int -> cuadricula[fila * 9 + i] }
+                c.drawLine(f(0).x.toFloat(), f(0).y.toFloat(), f(8).x.toFloat(), f(8).y.toFloat(), linea)
+                c.drawLine(k(0).x.toFloat(), k(0).y.toFloat(), k(8).x.toFloat(), k(8).y.toFloat(), linea)
+            }
         }
-        if (esquinas.size == 4) c.drawLine(esquinas[3].x, esquinas[3].y, esquinas[0].x, esquinas[0].y, linea)
+        esquinas.forEachIndexed { i, p ->
+            c.drawCircle(p.x.toFloat(), p.y.toFloat(), 12f, punto)
+            c.drawText(nombres[i], p.x.toFloat() + 18, p.y.toFloat() - 18, texto)
+            if (cuadricula.isEmpty() && i > 0) {
+                c.drawLine(esquinas[i - 1].x.toFloat(), esquinas[i - 1].y.toFloat(), p.x.toFloat(), p.y.toFloat(), linea)
+            }
+        }
     }
 }
