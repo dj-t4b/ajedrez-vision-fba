@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Ajedrez FBA</string>
+    <color name="tinta">#211F1B</color>
+    <color name="papel">#F7F4EE</color>
+    <color name="acento">#2E5E42</color>
+    <style name="Tema" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:colorPrimary">@color/acento</item>
+        <item name="android:colorAccent">@color/acento</item>
+        <item name="android:windowBackground">@color/papel</item>
+        <item name="android:statusBarColor">@color/tinta</item>
+    </style>
+</resources>
