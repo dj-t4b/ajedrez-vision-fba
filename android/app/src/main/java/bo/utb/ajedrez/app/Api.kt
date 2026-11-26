@@ -29,7 +29,9 @@ class Api(contexto: Context) {
         return r
     }
 
-    fun partidasEnCurso() = JSONArray(pedir("GET", "/api/partidas?estado=EN_CURSO"))
+    fun torneos() = JSONArray(pedir("GET", "/api/torneos"))
+
+    fun partidasEnCurso(torneoId: Long) = JSONArray(pedir("GET", "/api/partidas?estado=EN_CURSO&torneoId=$torneoId"))
 
     fun partida(id: Long) = JSONObject(pedir("GET", "/api/partidas/$id"))
 

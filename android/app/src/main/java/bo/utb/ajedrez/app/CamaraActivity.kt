@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
+import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -49,6 +50,8 @@ class CamaraActivity : ComponentActivity() {
     private var referenciaAnterior: Mat? = null  // para volver atrás si se deshace una jugada
     private var calibrando = false
     private var buscando = false
+    private var ocupado = false                 // diálogo abierto o jugada enviándose
+    private lateinit var aviso: TextView
 
     private val pedirCamara = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         if (ok) iniciarCamara() else estado.text = "Sin permiso de cámara no se pueden leer jugadas."
@@ -63,6 +66,7 @@ class CamaraActivity : ComponentActivity() {
         vista = findViewById(R.id.vista)
         marcas = findViewById(R.id.marcas)
         estado = findViewById(R.id.estado)
+        aviso = findViewById(R.id.aviso)
 
         if (!OpenCVLoader.initLocal()) estado.text = "No se pudo cargar OpenCV."
 
@@ -101,6 +105,7 @@ class CamaraActivity : ComponentActivity() {
         else pedirCamara.launch(Manifest.permission.CAMERA)
         cargarPartida()
         buscarTableroAuto()
+        vigilar()
     }
 
     private fun iniciarCamara() {
@@ -182,12 +187,62 @@ class CamaraActivity : ComponentActivity() {
         return Vision.enderezar(foto, marcas.esquinas)
     }
 
+    /** Botón «Registrar jugada» (respaldo del registro automático). */
     private fun leerJugada(elegirSiempre: Boolean) {
-        val ref = referencia ?: run { estado.text = "Todavía no se ubicó el tablero."; return }
+        if (referencia == null) { estado.text = "Todavía no se ubicó el tablero."; return }
+        if (ocupado) return
         val actual = capturar() ?: run { estado.text = "La cámara todavía no tiene imagen."; return }
+        evaluar(actual, elegirSiempre, automatico = false)
+    }
+
+    /**
+     * Registro automático: compara cada cuadro con el anterior. Cuando hubo movimiento (la mano sobre
+     * el tablero) y después la imagen queda quieta ~1 s, evalúa la jugada contra la posición anterior.
+     */
+    private fun vigilar() = lifecycleScope.launch {
+        var previo: Mat? = null
+        var quietos = 0
+        var huboMovimiento = false
+        while (isActive) {
+            delay(350)
+            if (referencia == null || calibrando || ocupado) {
+                previo?.release(); previo = null; quietos = 0; huboMovimiento = false
+                continue
+            }
+            val actual = capturar() ?: continue
+            val movimiento = previo?.let { Vision.diferenciaMedia(it, actual) } ?: 0.0
+            previo?.release()
+            previo = actual.clone()
+            if (movimiento > MOVIMIENTO_CUADRO) {
+                huboMovimiento = true
+                quietos = 0
+                actual.release()
+                continue
+            }
+            quietos++
+            if (huboMovimiento && quietos >= CUADROS_QUIETOS) {
+                // Si la mano sigue tapando el tablero (muchas casillas distintas), se sigue esperando
+                if (evaluar(actual, elegirSiempre = false, automatico = true)) huboMovimiento = false
+            } else {
+                actual.release()
+            }
+        }
+        previo?.release()
+    }
+
+    /**
+     * Deduce la jugada de [actual] contra la referencia y la registra o pregunta. Se queda con [actual].
+     * @return false si parece que algo todavía tapa el tablero (solo en modo automático)
+     */
+    private fun evaluar(actual: Mat, elegirSiempre: Boolean, automatico: Boolean): Boolean {
+        val ref = referencia ?: run { actual.release(); return true }
         val cambios = Vision.cambios(ref, actual, Geometria.ladoCercano(marcas.esquinas))
+        if (automatico && cambios.count { it > Deduccion.UMBRAL_MOVIMIENTO } > MAX_CASILLAS_CAMBIADAS) {
+            actual.release()
+            return false
+        }
         val r = Deduccion.deducir(fen, cambios)
-        Log.i("Ajedrez", "candidatas=${r.candidatas} confianza=${r.confianza}")
+        Log.i("Ajedrez", "${if (automatico) "auto" else "botón"} candidatas=${r.candidatas} confianza=${r.confianza}")
         Log.i("Ajedrez", "cambios a8..h1:\n" + cambios.toList().chunked(8).joinToString("\n") { f -> f.joinToString(" ") { "%3.0f".format(it) } })
         // Tableros enderezados antes/después, para revisar la lectura desde el PC con adb pull
         getExternalFilesDir(null)?.let { dir ->
@@ -197,33 +252,51 @@ class CamaraActivity : ComponentActivity() {
 
         val mejor = r.mejor
         if (mejor == null) {
-            estado.text = "No se ve ningún cambio en el tablero. ¿Se movió una pieza?"
+            // En automático, la mano pasó sin mover nada: no se avisa
+            if (!automatico) estado.text = "No se ve ningún cambio en el tablero. ¿Se movió una pieza?"
             actual.release()
-            return
+            return true
         }
         if (!elegirSiempre && r.confianza >= 0.5) {
-            enviar(mejor.uci, r.confianza, actual)
-            return
+            enviar(mejor, r.confianza, actual)
+            return true
         }
         // Confianza baja: el árbitro elige entre las jugadas más probables
+        ocupado = true
         val etiquetas = r.candidatas.mapIndexed { i, c -> if (i == 0) "${c.san}   (más probable)" else c.san }.toTypedArray()
         AlertDialog.Builder(this)
             .setTitle("¿Cuál fue la jugada? (confianza ${(r.confianza * 100).toInt()}%)")
-            .setItems(etiquetas) { _, i -> enviar(r.candidatas[i].uci, r.confianza, actual) }
-            .setNegativeButton("Ninguna") { _, _ -> actual.release() }
+            .setItems(etiquetas) { _, i -> enviar(r.candidatas[i], r.confianza, actual) }
+            .setNegativeButton("Ninguna") { _, _ -> actual.release(); ocupado = false }
+            .setOnCancelListener { actual.release(); ocupado = false }
             .show()
+        return true
     }
 
-    private fun enviar(uci: String, confianza: Double, actual: Mat) = lifecycleScope.launch {
+    private fun enviar(jugada: Deduccion.Candidata, confianza: Double, actual: Mat) = lifecycleScope.launch {
+        ocupado = true
         try {
-            mostrar(withContext(Dispatchers.IO) { api.registrarJugada(partidaId, uci, confianza) })
+            mostrar(withContext(Dispatchers.IO) { api.registrarJugada(partidaId, jugada.uci, confianza) })
             referenciaAnterior?.release()
             referenciaAnterior = referencia
             referencia = actual
+            avisar(jugada.san)
         } catch (e: ErrorApi) {
-            estado.text = "No se registró $uci: ${e.message}"
+            estado.text = "No se registró ${jugada.san}: ${e.message}"
             actual.release()
+        } finally {
+            ocupado = false
         }
+    }
+
+    /** Muestra la jugada registrada grande y en verde en el centro de la pantalla, sin sonido. */
+    private fun avisar(san: String) {
+        aviso.animate().cancel()
+        aviso.text = san
+        aviso.alpha = 1f
+        aviso.visibility = View.VISIBLE
+        aviso.animate().alpha(0f).setStartDelay(1800).setDuration(500)
+            .withEndAction { aviso.visibility = View.GONE }.start()
     }
 
     private fun deshacer() = lifecycleScope.launch {
@@ -252,6 +325,12 @@ class CamaraActivity : ComponentActivity() {
     private fun soltarReferencias() {
         referencia?.release(); referencia = null
         referenciaAnterior?.release(); referenciaAnterior = null
+    }
+
+    private companion object {
+        const val MOVIMIENTO_CUADRO = 3.5      // diferencia media de gris entre cuadros que indica movimiento (mano)
+        const val CUADROS_QUIETOS = 3          // ~1 s quieto (cuadros cada 350 ms) para evaluar
+        const val MAX_CASILLAS_CAMBIADAS = 8   // más casillas distintas = algo sigue tapando el tablero
     }
 
     override fun onDestroy() {

@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, LogOut, Swords, Users } from 'lucide-react'
+import { LayoutDashboard, LogOut, Swords, Trophy, Users } from 'lucide-react'
 import { useSesion } from './sesion.jsx'
 import Marca from './componentes/Marca.jsx'
 
@@ -16,6 +16,7 @@ export default function Estructura() {
         </div>
         <nav className="nav" aria-label="Principal">
           <NavLink to="/" end><LayoutDashboard size={18} aria-hidden /> Panel</NavLink>
+          <NavLink to="/torneos"><Trophy size={18} aria-hidden /> Torneos</NavLink>
           <NavLink to="/partidas"><Swords size={18} aria-hidden /> Partidas</NavLink>
           {sesion.rol === 'ADMIN' && <NavLink to="/usuarios"><Users size={18} aria-hidden /> Usuarios</NavLink>}
         </nav>

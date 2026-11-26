@@ -53,7 +53,7 @@ export default function Partida() {
             <ArrowLeft size={16} aria-hidden /> Partidas
           </Link>
           <h1 style={{ marginTop: 8 }}>{p.blancas} – {p.negras}</h1>
-          <p>{[p.torneo, p.ronda && `Ronda ${p.ronda}`].filter(Boolean).join(' · ') || 'Partida sin torneo'}</p>
+          <p><Link to={`/torneos/${p.torneoId}`}>{p.categoria ? `${p.torneo} · ${p.categoria}` : p.torneo}</Link>{p.ronda ? ` · Ronda ${p.ronda}` : ''}</p>
         </div>
         {enCurso ? <span className="etiqueta vivo">En curso</span> : <span className="etiqueta">Finalizada {p.resultado}</span>}
       </div>

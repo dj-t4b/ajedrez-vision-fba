@@ -3,6 +3,7 @@ package bo.utb.ajedrez.partida;
 import bo.utb.ajedrez.comun.NoEncontradoException;
 import bo.utb.ajedrez.comun.ReglaNegocioException;
 import bo.utb.ajedrez.partida.PartidaDtos.*;
+import bo.utb.ajedrez.torneo.TorneoService;
 import bo.utb.ajedrez.usuario.UsuarioRepository;
 import com.github.bhlangonijr.chesslib.Board;
 import com.github.bhlangonijr.chesslib.Side;
@@ -23,16 +24,17 @@ public class PartidaService {
 
     private final PartidaRepository repo;
     private final UsuarioRepository usuarios;
+    private final TorneoService torneos;
 
-    public PartidaService(PartidaRepository repo, UsuarioRepository usuarios) {
+    public PartidaService(PartidaRepository repo, UsuarioRepository usuarios, TorneoService torneos) {
         this.repo = repo;
         this.usuarios = usuarios;
+        this.torneos = torneos;
     }
 
     @Transactional(readOnly = true)
-    public List<PartidaResumen> listar(Partida.Estado estado) {
-        List<Partida> ps = estado == null ? repo.findAllByOrderByCreadaEnDesc() : repo.findByEstadoOrderByCreadaEnDesc(estado);
-        return ps.stream().map(PartidaResumen::de).toList();
+    public List<PartidaResumen> listar(Partida.Estado estado, Long torneoId) {
+        return repo.buscar(estado, torneoId).stream().map(PartidaResumen::de).toList();
     }
 
     @Transactional(readOnly = true)
@@ -42,7 +44,7 @@ public class PartidaService {
 
     public PartidaDetalle crear(PartidaRequest req, Long usuarioId) {
         Partida p = new Partida();
-        p.setTorneo(req.torneo());
+        p.setTorneo(torneos.buscar(req.torneoId()));
         p.setRonda(req.ronda());
         p.setBlancas(req.blancas().trim());
         p.setNegras(req.negras().trim());

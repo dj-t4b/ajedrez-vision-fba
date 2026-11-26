@@ -9,6 +9,7 @@ import Panel from './paginas/Panel.jsx'
 import Partidas from './paginas/Partidas.jsx'
 import Partida from './paginas/Partida.jsx'
 import Usuarios from './paginas/Usuarios.jsx'
+import Torneos from './paginas/Torneos.jsx'
 
 function Protegida({ children, rol }) {
   const { sesion } = useSesion()
@@ -25,6 +26,8 @@ createRoot(document.getElementById('root')).render(
           <Route path="/login" element={<Login />} />
           <Route element={<Protegida><Estructura /></Protegida>}>
             <Route index element={<Panel />} />
+            <Route path="torneos" element={<Torneos />} />
+            <Route path="torneos/:id" element={<Partidas />} />
             <Route path="partidas" element={<Partidas />} />
             <Route path="partidas/:id" element={<Partida />} />
             <Route path="usuarios" element={<Protegida rol="ADMIN"><Usuarios /></Protegida>} />

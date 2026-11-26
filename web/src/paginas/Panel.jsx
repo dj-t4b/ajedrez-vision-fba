@@ -31,7 +31,7 @@ export default function Panel() {
             {vivas?.slice(0, 6).map((p) => (
               <Link key={p.id} to={`/partidas/${p.id}`} className="viva">
                 <div className="tablero"><Tablero id={`mini-${p.id}`} fen={p.fenActual} /></div>
-                <div className="jugadores">{p.blancas} – {p.negras}</div>
+                <div className="jugadores">{p.blancas} – {p.negras}<div className="secundario" style={{ fontWeight: 400 }}>{p.categoria ? `${p.torneo} · ${p.categoria}` : p.torneo}</div></div>
               </Link>
             ))}
           </div>
@@ -41,6 +41,7 @@ export default function Panel() {
           <section className="bloque">
             <h2>Resumen</h2>
             <dl className="cifras">
+              <dt>Torneos</dt><dd>{r.torneos}</dd>
               <dt>Partidas en curso</dt><dd>{r.partidasEnCurso}</dd>
               <dt>Partidas finalizadas</dt><dd>{r.partidasFinalizadas}</dd>
               <dt>Usuarios</dt><dd>{r.usuarios}</dd>

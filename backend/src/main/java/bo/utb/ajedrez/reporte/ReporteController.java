@@ -9,6 +9,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
@@ -29,13 +30,13 @@ public class ReporteController {
     }
 
     @GetMapping("/partidas.pdf")
-    public ResponseEntity<byte[]> partidasPdf() {
-        return archivo(service.partidasPdf(), MediaType.APPLICATION_PDF, "partidas.pdf");
+    public ResponseEntity<byte[]> partidasPdf(@RequestParam(required = false) Long torneoId) {
+        return archivo(service.partidasPdf(torneoId), MediaType.APPLICATION_PDF, "partidas.pdf");
     }
 
     @GetMapping("/partidas.xlsx")
-    public ResponseEntity<byte[]> partidasExcel() throws IOException {
-        return archivo(service.partidasExcel(), XLSX, "partidas.xlsx");
+    public ResponseEntity<byte[]> partidasExcel(@RequestParam(required = false) Long torneoId) throws IOException {
+        return archivo(service.partidasExcel(torneoId), XLSX, "partidas.xlsx");
     }
 
     @GetMapping("/partidas/{id}.pdf")

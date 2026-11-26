@@ -1,9 +1,10 @@
 # Diagrama entidad-relación (MySQL)
 
-El esquema lo crea Flyway con `backend/src/main/resources/db/migration/V1__esquema_inicial.sql`.
+El esquema lo crea Flyway con `backend/src/main/resources/db/migration/` (V1: esquema inicial; V2: torneos, con migración de los datos existentes).
 
 ```mermaid
 erDiagram
+    TORNEO ||--o{ PARTIDA : agrupa
     USUARIO ||--o{ PARTIDA : registra
     PARTIDA ||--o{ JUGADA : contiene
 
@@ -16,9 +17,17 @@ erDiagram
         BOOLEAN activo
         DATETIME creado_en
     }
+    TORNEO {
+        BIGINT id PK
+        VARCHAR nombre
+        VARCHAR categoria "Absoluto, Sub-14..."
+        VARCHAR ciudad
+        DATE fecha_inicio
+        DATETIME creado_en
+    }
     PARTIDA {
         BIGINT id PK
-        VARCHAR torneo
+        BIGINT torneo_id FK
         INT ronda
         VARCHAR blancas
         VARCHAR negras

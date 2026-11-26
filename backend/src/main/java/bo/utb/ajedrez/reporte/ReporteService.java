@@ -50,8 +50,8 @@ public class ReporteService {
     }
 
     /** Listado de todas las partidas en PDF. */
-    public byte[] partidasPdf() {
-        List<Partida> ps = partidas.findAllByOrderByCreadaEnDesc();
+    public byte[] partidasPdf(Long torneoId) {
+        List<Partida> ps = partidas.buscar(null, torneoId);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         Document doc = new Document(PageSize.A4.rotate(), 36, 36, 36, 36);
         PdfWriter.getInstance(doc, out);
@@ -63,7 +63,7 @@ public class ReporteService {
         PdfPTable t = tabla(new float[]{1, 4, 4, 4, 1.5f, 2.5f, 1.5f, 3},
                 "N°", "Blancas", "Negras", "Torneo", "Ronda", "Resultado", "Jugadas", "Fecha");
         for (Partida p : ps) {
-            celdas(t, p.getId(), p.getBlancas(), p.getNegras(), texto(p.getTorneo()), texto(p.getRonda()),
+            celdas(t, p.getId(), p.getBlancas(), p.getNegras(), torneo(p), texto(p.getRonda()),
                     resultado(p), p.getJugadas().size(), FECHA.format(p.getCreadaEn()));
         }
         doc.add(t);
@@ -81,7 +81,7 @@ public class ReporteService {
         doc.open();
         doc.add(new Paragraph("Planilla de partida N° " + p.getId(), TITULO));
         doc.add(new Paragraph(p.getBlancas() + " (blancas) – " + p.getNegras() + " (negras)", new Font(Font.HELVETICA, 12, Font.BOLD)));
-        doc.add(new Paragraph(texto(p.getTorneo()) + (p.getRonda() != null ? " · Ronda " + p.getRonda() : "")
+        doc.add(new Paragraph(torneo(p) + (p.getRonda() != null ? " · Ronda " + p.getRonda() : "")
                 + " · " + FECHA.format(p.getCreadaEn()) + " · Resultado: " + resultado(p), NORMAL));
         doc.add(Chunk.NEWLINE);
 
@@ -102,8 +102,8 @@ public class ReporteService {
     }
 
     /** Partidas en Excel: una hoja con el listado y el PGN de cada una. */
-    public byte[] partidasExcel() throws IOException {
-        List<Partida> ps = partidas.findAllByOrderByCreadaEnDesc();
+    public byte[] partidasExcel(Long torneoId) throws IOException {
+        List<Partida> ps = partidas.buscar(null, torneoId);
         try (Workbook wb = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             Sheet hoja = wb.createSheet("Partidas");
             CellStyle negrita = wb.createCellStyle();
@@ -125,7 +125,7 @@ public class ReporteService {
                 row.createCell(0).setCellValue(p.getId());
                 row.createCell(1).setCellValue(p.getBlancas());
                 row.createCell(2).setCellValue(p.getNegras());
-                row.createCell(3).setCellValue(texto(p.getTorneo()));
+                row.createCell(3).setCellValue(torneo(p));
                 if (p.getRonda() != null) row.createCell(4).setCellValue(p.getRonda());
                 row.createCell(5).setCellValue(p.getEstado().name());
                 row.createCell(6).setCellValue(p.getResultado());
@@ -165,6 +165,11 @@ public class ReporteService {
 
     private static String texto(Object o) {
         return o == null ? "—" : o.toString();
+    }
+
+    private static String torneo(Partida p) {
+        String c = p.getTorneo().getCategoria();
+        return p.getTorneo().getNombre() + (c == null ? "" : " (" + c + ")");
     }
 
     private static String resultado(Partida p) {

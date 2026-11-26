@@ -35,3 +35,9 @@
 - [x] T4.2 UML (casos de uso, clases, ER) en `docs/`. Verificación: diagramas renderizados.
 - [x] T4.3 README final (instalación, Docker, capturas). Verificación: seguir el README en limpio.
 - [ ] T4.4 Guion de la defensa en vivo.
+
+## Sprint 5: Torneos y registro automático
+- [x] T5.1 Torneos (varios a la vez, por categoría): entidad, migración V2, CRUD, partidas y reportes por torneo. Verificación: FlujoApiTest; migración probada sobre datos reales en Docker.
+- [x] T5.2 Web: página de torneos, partidas por torneo, filtro y alta de partida dentro de un torneo.
+- [x] T5.3 App: elegir torneo → partida.
+- [x] T5.4 App: registro automático al quedar quieta la imagen; jugada en verde grande, sin sonido.

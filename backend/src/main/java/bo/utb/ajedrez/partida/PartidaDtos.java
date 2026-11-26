@@ -8,7 +8,7 @@ public final class PartidaDtos {
     private PartidaDtos() {}
 
     public record PartidaRequest(
-            @Size(max = 120) String torneo,
+            @NotNull Long torneoId,
             @Positive Integer ronda,
             @NotBlank @Size(max = 100) String blancas,
             @NotBlank @Size(max = 100) String negras) {}
@@ -30,11 +30,11 @@ public final class PartidaDtos {
         }
     }
 
-    public record PartidaResumen(Long id, String torneo, Integer ronda, String blancas, String negras,
+    public record PartidaResumen(Long id, Long torneoId, String torneo, String categoria, Integer ronda, String blancas, String negras,
                                  Partida.Estado estado, String resultado, String fenActual,
                                  String registradaPor, LocalDateTime creadaEn) {
         static PartidaResumen de(Partida p) {
-            return new PartidaResumen(p.getId(), p.getTorneo(), p.getRonda(), p.getBlancas(), p.getNegras(),
+            return new PartidaResumen(p.getId(), p.getTorneo().getId(), p.getTorneo().getNombre(), p.getTorneo().getCategoria(), p.getRonda(), p.getBlancas(), p.getNegras(),
                     p.getEstado(), p.getResultado(), p.getFenActual(), p.getRegistradaPor().getNombre(), p.getCreadaEn());
         }
     }

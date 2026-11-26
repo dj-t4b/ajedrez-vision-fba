@@ -21,9 +21,15 @@ classDiagram
         ARBITRO
         JUGADOR
     }
+    class Torneo {
+        -Long id
+        -String nombre
+        -String categoria
+        -String ciudad
+        -LocalDate fechaInicio
+    }
     class Partida {
         -Long id
-        -String torneo
         -Integer ronda
         -String blancas
         -String negras
@@ -60,7 +66,7 @@ classDiagram
         +eliminar(Long)
     }
     class PartidaService {
-        +listar(Estado) List~PartidaResumen~
+        +listar(Estado, Long torneoId) List~PartidaResumen~
         +crear(PartidaRequest, Long) PartidaDetalle
         +registrarJugada(Long, JugadaRequest) PartidaDetalle
         +deshacerUltima(Long) PartidaDetalle
@@ -91,6 +97,16 @@ classDiagram
     Jugada --> Origen
     Partida "1" *-- "0..*" Jugada : jugadas
     Partida "0..*" --> "1" Usuario : registradaPor
+    Partida "0..*" --> "1" Torneo : torneo
+    class TorneoService {
+        +listar() List~TorneoResponse~
+        +crear(TorneoRequest) TorneoResponse
+        +actualizar(Long, TorneoRequest) TorneoResponse
+        +eliminar(Long)
+    }
+    class TorneoController
+    TorneoController --> TorneoService
+    PartidaService --> TorneoService
 
     UsuarioController --> UsuarioService
     PartidaController --> PartidaService

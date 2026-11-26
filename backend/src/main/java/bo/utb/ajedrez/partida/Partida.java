@@ -1,5 +1,6 @@
 package bo.utb.ajedrez.partida;
 
+import bo.utb.ajedrez.torneo.Torneo;
 import bo.utb.ajedrez.usuario.Usuario;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
@@ -18,8 +19,9 @@ public class Partida {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(length = 120)
-    private String torneo;
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "torneo_id")
+    private Torneo torneo;
 
     private Integer ronda;
 
@@ -52,8 +54,8 @@ public class Partida {
     private List<Jugada> jugadas = new ArrayList<>();
 
     public Long getId() { return id; }
-    public String getTorneo() { return torneo; }
-    public void setTorneo(String torneo) { this.torneo = torneo; }
+    public Torneo getTorneo() { return torneo; }
+    public void setTorneo(Torneo torneo) { this.torneo = torneo; }
     public Integer getRonda() { return ronda; }
     public void setRonda(Integer ronda) { this.ronda = ronda; }
     public String getBlancas() { return blancas; }

@@ -44,11 +44,31 @@ class FlujoApiTest {
 
         // Roles: el jugador no gestiona usuarios ni crea partidas
         mvc.perform(get("/api/usuarios").header("Authorization", "Bearer " + jugador)).andExpect(status().isForbidden());
-        String partidaJson = "{\"torneo\":\"Abierto FBA\",\"ronda\":1,\"blancas\":\"Ana\",\"negras\":\"Luis\"}";
+        // Torneos: dos a la vez (categorías); el jugador no puede crearlos
+        String torneoJson = "{\"nombre\":\"Abierto FBA\",\"categoria\":\"Absoluto\",\"ciudad\":\"La Paz\",\"fechaInicio\":\"2026-12-01\"}";
+        llamar(post("/api/torneos"), jugador, torneoJson).andExpect(status().isForbidden());
+        long torneoId = leer(llamar(post("/api/torneos"), arbitro, torneoJson).andExpect(status().isCreated())).get("id").asLong();
+        long otroTorneo = leer(llamar(post("/api/torneos"), arbitro, "{\"nombre\":\"Abierto FBA\",\"categoria\":\"Sub-14\"}")
+                .andExpect(status().isCreated())).get("id").asLong();
+        llamar(post("/api/torneos"), arbitro, "{\"nombre\":\"\"}").andExpect(status().isBadRequest());
+
+        String partidaJson = "{\"torneoId\":" + torneoId + ",\"ronda\":1,\"blancas\":\"Ana\",\"negras\":\"Luis\"}";
         llamar(post("/api/partidas"), jugador, partidaJson).andExpect(status().isForbidden());
+        llamar(post("/api/partidas"), arbitro, "{\"ronda\":1,\"blancas\":\"Ana\",\"negras\":\"Luis\"}").andExpect(status().isBadRequest());
+        llamar(post("/api/partidas"), arbitro, "{\"torneoId\":999,\"blancas\":\"Ana\",\"negras\":\"Luis\"}").andExpect(status().isNotFound());
 
         JsonNode creada = leer(llamar(post("/api/partidas"), arbitro, partidaJson).andExpect(status().isCreated()));
         long id = creada.at("/partida/id").asLong();
+        assert "Abierto FBA".equals(creada.at("/partida/torneo").asText());
+        assert "Absoluto".equals(creada.at("/partida/categoria").asText());
+
+        // Filtro por torneo y conteos
+        assert leer(llamar(get("/api/partidas?torneoId=" + torneoId), jugador, null)).size() == 1;
+        assert leer(llamar(get("/api/partidas?torneoId=" + otroTorneo), jugador, null)).size() == 0;
+        JsonNode torneo = leer(llamar(get("/api/torneos/" + torneoId), jugador, null).andExpect(status().isOk()));
+        assert torneo.get("partidas").asLong() == 1 && torneo.get("enCurso").asLong() == 1;
+        llamar(delete("/api/torneos/" + torneoId), admin, null).andExpect(status().isUnprocessableEntity());
+        llamar(delete("/api/torneos/" + otroTorneo), admin, null).andExpect(status().isNoContent());
 
         // Jugada ilegal rechazada, formato inválido y recurso inexistente
         jugar(arbitro, id, "e2e5").andExpect(status().isUnprocessableEntity());
@@ -77,7 +97,7 @@ class FlujoApiTest {
         assert dash.at("/jugadasVision").asLong() == 3;
 
         // Reportes: los genera el árbitro, no el jugador
-        byte[] pdf = mvc.perform(get("/api/reportes/partidas.pdf").header("Authorization", "Bearer " + arbitro))
+        byte[] pdf = mvc.perform(get("/api/reportes/partidas.pdf?torneoId=" + torneoId).header("Authorization", "Bearer " + arbitro))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
         assert new String(pdf, 0, 5).equals("%PDF-");
         byte[] planilla = mvc.perform(get("/api/reportes/partidas/" + id + ".pdf").header("Authorization", "Bearer " + arbitro))

@@ -24,8 +24,9 @@ public class PartidaController {
     }
 
     @GetMapping
-    public List<PartidaResumen> listar(@RequestParam(required = false) Partida.Estado estado) {
-        return service.listar(estado);
+    public List<PartidaResumen> listar(@RequestParam(required = false) Partida.Estado estado,
+                                       @RequestParam(required = false) Long torneoId) {
+        return service.listar(estado, torneoId);
     }
 
     @GetMapping("/{id}")

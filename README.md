@@ -100,8 +100,10 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 
 El APK ya compilado está en la sección **Releases** del repositorio.
 
-**Uso:** crear la partida en el panel web, entrar a ella en la app con el tablero en la posición inicial y el celular fijo (puede estar inclinado). La cuadrícula verde aparece sola. Después de cada jugada, tocar «Registrar jugada».
-- Pulsación larga en «Registrar jugada»: elegir la jugada de una lista.
+**Uso:** crear el torneo y la partida en el panel web. En la app elegir torneo → partida, con el tablero en la posición inicial y el celular fijo en un soporte (puede estar inclinado). La cuadrícula verde aparece sola.
+
+**Registro automático:** no hace falta tocar nada. La app compara unas 3 imágenes por segundo; cuando hubo movimiento (la mano del jugador) y la imagen vuelve a quedar quieta ~1 segundo, deduce la jugada y la registra. La jugada aparece grande y en verde en el centro de la pantalla un momento, **sin sonido** para no distraer a los jugadores. Si la confianza es baja, muestra las opciones; si la mano pasó sin mover nada, no hace nada.
+- «Registrar jugada»: respaldo manual. Pulsación larga: elegir la jugada de una lista.
 - «Deshacer»: corrige la última jugada.
 - Toque en «Calibrar»: calibración manual (esquinas a8, h8, h1, a1). Pulsación larga en «Calibrar»: vuelve a buscar el tablero solo.
 
@@ -134,13 +136,16 @@ mvn test
 | Método | Ruta | Rol |
 |---|---|---|
 | POST | `/api/auth/login` | público |
-| GET | `/api/partidas`, `/api/partidas/{id}` | cualquiera autenticado |
+| GET | `/api/torneos`, `/api/torneos/{id}` | cualquiera autenticado |
+| POST/PUT | `/api/torneos` | ADMIN, ARBITRO |
+| DELETE | `/api/torneos/{id}` (solo sin partidas) | ADMIN |
+| GET | `/api/partidas?torneoId=&estado=`, `/api/partidas/{id}` | cualquiera autenticado |
 | POST | `/api/partidas` | ADMIN, ARBITRO |
 | POST | `/api/partidas/{id}/jugadas` | ADMIN, ARBITRO |
 | DELETE | `/api/partidas/{id}/jugadas/ultima` | ADMIN, ARBITRO |
 | PATCH | `/api/partidas/{id}/resultado` | ADMIN, ARBITRO |
 | GET/POST/PUT/DELETE | `/api/usuarios` | ADMIN |
 | GET | `/api/dashboard` | cualquiera autenticado |
-| GET | `/api/reportes/partidas.pdf`, `.xlsx`, `/api/reportes/partidas/{id}.pdf` | ADMIN, ARBITRO |
+| GET | `/api/reportes/partidas.pdf?torneoId=`, `.xlsx`, `/api/reportes/partidas/{id}.pdf` | ADMIN, ARBITRO |
 
 La documentación completa está en Swagger UI.

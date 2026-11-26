@@ -12,10 +12,11 @@ flowchart LR
     subgraph sistema["Sistema de registro de partidas FBA"]
         cu1(["Iniciar sesión"])
         cu2(["Gestionar usuarios y roles"])
-        cu3(["Crear partida"])
+        cu13(["Gestionar torneos y categorías"])
+        cu3(["Crear partida en un torneo"])
         cu4(["Capturar tablero con la cámara"])
         cu5(["Deducir jugada"])
-        cu6(["Registrar jugada"])
+        cu6(["Registrar jugada (automático al quedar quieta la imagen)"])
         cu7(["Corregir jugada (deshacer)"])
         cu8(["Cargar jugada a mano"])
         cu9(["Cerrar partida con resultado"])
@@ -24,8 +25,8 @@ flowchart LR
         cu12(["Generar reportes PDF / Excel"])
     end
 
-    admin --- cu1 & cu2 & cu12 & cu11
-    arbitro --- cu1 & cu3 & cu7 & cu8 & cu9 & cu12 & cu11
+    admin --- cu1 & cu13 & cu2 & cu12 & cu11
+    arbitro --- cu1 & cu13 & cu3 & cu7 & cu8 & cu9 & cu12 & cu11
     jugador --- cu1 & cu10
     arbitro --- cu4
     cu4 -. include .-> cu5
@@ -38,6 +39,7 @@ flowchart LR
 |---|---|---|
 | Iniciar sesión | Todos | Email y contraseña; el sistema devuelve un token JWT con el rol. |
 | Gestionar usuarios y roles | Administrador | Crear, editar, desactivar y eliminar usuarios. No se puede quitar al último administrador. |
+| Gestionar torneos | Árbitro, Administrador | Crear y editar torneos (varios a la vez, p. ej. uno por categoría). Solo el administrador elimina, y solo torneos sin partidas. |
 | Crear partida | Árbitro, Administrador | Registra jugadores, torneo y ronda. La partida empieza en la posición inicial. |
 | Capturar tablero / Deducir jugada | Árbitro con la app Android | La app detecta el tablero, compara la ocupación de casillas con la posición anterior y elige la jugada legal que la explica. |
 | Registrar jugada | Sistema | El servidor valida la jugada contra la posición actual, calcula la notación SAN y detecta mate o tablas. |

@@ -132,6 +132,13 @@ object Vision {
         return res
     }
 
+    /** Diferencia media de gris entre dos tableros enderezados (detecta movimiento entre cuadros). */
+    fun diferenciaMedia(a: Mat, b: Mat): Double {
+        val dif = Mat()
+        Core.absdiff(a, b, dif)
+        return Core.mean(dif).`val`[0].also { dif.release() }
+    }
+
     /** Proyecta los puntos de la cuadrícula 9x9 del tablero enderezado a la imagen (para dibujarla). */
     fun cuadricula(esquinas: List<P>): List<P> {
         val h = Imgproc.getPerspectiveTransform(cuadrado(8.0), puntos(esquinas))
