@@ -7,7 +7,7 @@
 
 ## Sprint 1: Backend + Docker
 - [x] T1.1 Esqueleto Spring Boot `.war` con endpoint `/api/health`. Verificación: `mvn package` y despliegue en WildFly devuelve 200.
-- [ ] T1.2 Docker Compose (WildFly 41 + MySQL 8) con el `.war` desplegado. Verificación: `docker compose up` y `/api/health` responde. (escrito; falta probarlo cuando Docker esté instalado)
+- [x] T1.2 Docker Compose (WildFly 41 + MySQL 8) con el `.war` desplegado. Verificación: `docker compose up` y `/api/health` responde.
 - [x] T1.3 Usuarios y roles + login JWT (Flyway, Spring Security). Verificación: test de integración de login; Swagger muestra los endpoints.
 - [x] T1.4 Partidas y jugadas (CRUD + endpoint que recibe la jugada desde Android). Verificación: tests de servicio; prueba en Swagger.
 - [x] T1.5 Logs SLF4J en servicios y manejo global de errores. Verificación: los logs aparecen en WildFly.
