@@ -111,16 +111,17 @@ El APK ya compilado está en la sección **Releases** del repositorio.
 
 **Por cable USB (lo más simple):** con la depuración USB activada, `adb reverse tcp:8080 tcp:8080` y en la app el servidor es `http://localhost:8080/ajedrez`.
 
-**Por Wi-Fi (demo sin cable):**
-1. Celular y PC en la misma red Wi-Fi (sirve el punto de acceso del propio celular).
-2. Ver la IP del PC con `ipconfig` (por ejemplo `192.168.1.2`).
-3. Permitir el puerto 8080 en el firewall de Windows (una vez, en PowerShell como administrador):
+**Por Wi-Fi (varios celulares, sin cable):**
+1. Celulares y PC en la **misma red Wi-Fi** (sirve el punto de acceso de un celular).
+2. Ver la IP del PC en esa red con `ipconfig` (la del adaptador «Wi-Fi», por ejemplo `192.168.100.145`) y ponerla en `.env`: `SERVIDOR_PUBLICO=http://192.168.100.145:8080/ajedrez`, luego `docker compose up -d`. Esa dirección es la que lleva el QR de vinculación (también se puede cambiar en la web, en la pestaña Celulares).
+3. Una sola vez, en PowerShell **como administrador**: marcar la red como privada y abrir el puerto 8080 solo para redes privadas.
    ```powershell
+   Set-NetConnectionProfile -InterfaceAlias "Wi-Fi" -NetworkCategory Private
    New-NetFirewallRule -DisplayName "Ajedrez API 8080" -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow -Profile Private
    ```
-4. En la app, el servidor es `http://IP-DEL-PC:8080/ajedrez`. Para comprobarlo, abrir `http://IP-DEL-PC:8080/ajedrez/api/health` en el navegador del celular: debe decir `{"estado":"ok"}`.
+4. Para comprobarlo, abrir `http://IP-DEL-PC:8080/ajedrez/api/health` en el navegador del celular: debe decir `{"estado":"ok"}`. Después, escanear el QR de la web con la app.
 
-La red Wi-Fi debe estar marcada como «Privada» en Windows; en redes públicas (como la de la universidad) conviene usar el punto de acceso del celular.
+En redes públicas o de la universidad (que suelen aislar a los equipos entre sí) conviene usar el punto de acceso de un celular.
 
 ## Pruebas
 
@@ -146,6 +147,7 @@ mvn test
 | POST | `/api/partidas` (mesa, ronda, jugadores) · POST `/{id}/reabrir` · DELETE | ADMIN, árbitro principal |
 | POST | `/api/partidas/{id}/jugadas` · `/{id}/jugadas/{n}/corregir` · DELETE `/ultima` · PATCH `/resultado` | ADMIN, árbitro principal, árbitro de esa mesa |
 | GET/POST/PUT/DELETE | `/api/usuarios` · GET `/api/usuarios/directorio` | ADMIN · cualquiera autenticado |
+| GET | `/api/auditoria?texto=&tipo=&desde=&hasta=` · `/api/auditoria/csv` | ADMIN |
 | GET | `/api/dashboard` | cualquiera autenticado |
 | GET | `/api/reportes/partidas.pdf?torneoId=`, `.xlsx`, `/api/reportes/partidas/{id}.pdf` | roles del torneo (sin torneo: ADMIN) |
 | POST | `/api/dispositivo/vincular` · GET `/estado` · POST `/jugadas` · DELETE `/jugadas/ultima` · POST `/resultado` | el celular, con su token (cabecera `X-Dispositivo`) |

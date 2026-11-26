@@ -26,9 +26,10 @@ flowchart LR
         cu13(["Terminar partida"])
         cu14(["Ver partidas en vivo"])
         cu15(["Descargar reportes PDF / Excel"])
+        cu16(["Revisar el registro de auditoría"])
     end
 
-    admin --- cu2 & cu3 & cu5
+    admin --- cu2 & cu3 & cu5 & cu16
     org --- cu1 & cu4 & cu5 & cu14 & cu15
     ap --- cu1 & cu6 & cu7 & cu8 & cu12 & cu13 & cu14 & cu15
     arb --- cu1 & cu12 & cu13 & cu14
@@ -52,3 +53,4 @@ flowchart LR
 | Corregir jugadas | Árbitro, Árbitro principal | Toca la jugada en la web y arrastra la pieza correcta; las posteriores se descartan y la cámara sigue desde ahí. |
 | Terminar partida | Árbitro, Árbitro principal, Celular | Resultado 1-0, 0-1 o ½-½ con confirmación. Mate y ahogado se cierran solos. |
 | Descargar reportes | Roles del torneo | Listado del torneo en PDF o Excel y planilla PDF de cada partida. |
+| Revisar el registro de auditoría | Administrador | Todo lo que hace cada usuario (admin incluido) y cada celular: quién, qué, cuándo, desde qué IP, con qué datos y si fue rechazado. Filtros y exportación a CSV. Las contraseñas y el PIN no se guardan. El administrador tiene además todos los permisos en cualquier torneo. |

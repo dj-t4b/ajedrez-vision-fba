@@ -1,6 +1,6 @@
 # Diagrama entidad-relación (MySQL)
 
-El esquema lo crea Flyway con `backend/src/main/resources/db/migration/` (V1: esquema inicial; V2: torneos; V3: roles por torneo y celulares, con migración de los datos existentes).
+El esquema lo crea Flyway con `backend/src/main/resources/db/migration/` (V1: esquema inicial; V2: torneos; V3: roles por torneo y celulares; V4: auditoría; con migración de los datos existentes). La tabla AUDITORIA no tiene claves foráneas a propósito: el registro se conserva aunque se borre lo que describe..
 
 ```mermaid
 erDiagram
@@ -40,6 +40,18 @@ erDiagram
     ACCESO_TABLERO {
         BIGINT asignacion_id PK
         INT mesa PK "sin filas = todas"
+    }
+    AUDITORIA {
+        BIGINT id PK
+        DATETIME fecha
+        VARCHAR actor "persona o celular"
+        VARCHAR tipo "ADMIN, USUARIO, CELULAR, ANONIMO"
+        VARCHAR accion
+        VARCHAR metodo
+        VARCHAR ruta
+        INT estado "HTTP"
+        VARCHAR ip
+        VARCHAR detalle "sin contraseñas ni PIN"
     }
     DISPOSITIVO {
         BIGINT id PK
