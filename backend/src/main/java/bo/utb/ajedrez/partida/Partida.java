@@ -25,6 +25,9 @@ public class Partida {
 
     private Integer ronda;
 
+    /** Número de mesa (tablero) dentro del torneo. */
+    private Integer mesa;
+
     @Column(nullable = false, length = 100)
     private String blancas;
 
@@ -57,6 +60,8 @@ public class Partida {
     public Torneo getTorneo() { return torneo; }
     public void setTorneo(Torneo torneo) { this.torneo = torneo; }
     public Integer getRonda() { return ronda; }
+    public Integer getMesa() { return mesa; }
+    public void setMesa(Integer mesa) { this.mesa = mesa; }
     public void setRonda(Integer ronda) { this.ronda = ronda; }
     public String getBlancas() { return blancas; }
     public void setBlancas(String blancas) { this.blancas = blancas; }

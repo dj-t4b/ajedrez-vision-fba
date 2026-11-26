@@ -14,7 +14,10 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-/** Recorre el flujo principal de la API contra H2: login, roles, partida y jugadas validadas. */
+/**
+ * Recorre el flujo de un torneo contra H2: roles por torneo con su matriz de permisos,
+ * vinculación de celulares con PIN, jugadas desde la cámara, corrección desde la web y reportes.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 class FlujoApiTest {
@@ -26,96 +29,136 @@ class FlujoApiTest {
     void flujoCompleto() throws Exception {
         mvc.perform(get("/api/health")).andExpect(status().isOk());
         mvc.perform(get("/api/partidas")).andExpect(status().isUnauthorized());
-        llamar(post("/api/auth/login"), null, "{\"email\":\"admin@fba.bo\",\"password\":\"mala\"}")
-                .andExpect(status().isUnauthorized());
-
+        llamar(post("/api/auth/login"), null, "{\"email\":\"admin@fba.bo\",\"password\":\"mala\"}").andExpect(status().isUnauthorized());
         String admin = login("admin@fba.bo", "admin123");
 
-        // ADMIN crea un árbitro y un jugador
-        llamar(post("/api/usuarios"), admin, "{\"nombre\":\"Árbitro\",\"email\":\"arbitro@fba.bo\",\"password\":\"arbitro1\",\"rol\":\"ARBITRO\"}")
-                .andExpect(status().isCreated());
-        llamar(post("/api/usuarios"), admin, "{\"nombre\":\"Jugador\",\"email\":\"jugador@fba.bo\",\"password\":\"jugador1\",\"rol\":\"JUGADOR\"}")
-                .andExpect(status().isCreated());
-        llamar(post("/api/usuarios"), admin, "{\"nombre\":\"Dup\",\"email\":\"ARBITRO@fba.bo\",\"password\":\"xxxxxx\",\"rol\":\"JUGADOR\"}")
+        // Usuarios (rol global USUARIO); los roles se dan por torneo
+        long org = usuario(admin, "Organizadora", "org@fba.bo");
+        long ap = usuario(admin, "Árbitro principal", "ap@fba.bo");
+        long arb1 = usuario(admin, "Árbitro uno", "arb1@fba.bo");
+        long arb2 = usuario(admin, "Árbitro dos", "arb2@fba.bo");
+        llamar(post("/api/usuarios"), admin, "{\"nombre\":\"Dup\",\"email\":\"ORG@fba.bo\",\"password\":\"xxxxxx\",\"rol\":\"USUARIO\"}")
                 .andExpect(status().isUnprocessableEntity());
+        String tOrg = login("org@fba.bo", "clave123"), tAp = login("ap@fba.bo", "clave123");
+        String tArb1 = login("arb1@fba.bo", "clave123"), tArb2 = login("arb2@fba.bo", "clave123");
 
-        String arbitro = login("arbitro@fba.bo", "arbitro1");
-        String jugador = login("jugador@fba.bo", "jugador1");
+        // Solo el administrador crea torneos
+        String torneoJson = "{\"nombre\":\"Abierto FBA\",\"categoria\":\"Absoluto\",\"ciudad\":\"La Paz\"}";
+        llamar(post("/api/torneos"), tOrg, torneoJson).andExpect(status().isForbidden());
+        long torneo = leer(llamar(post("/api/torneos"), admin, torneoJson).andExpect(status().isCreated())).get("id").asLong();
+        long otro = leer(llamar(post("/api/torneos"), admin, "{\"nombre\":\"Otro\"}")).get("id").asLong();
 
-        // Roles: el jugador no gestiona usuarios ni crea partidas
-        mvc.perform(get("/api/usuarios").header("Authorization", "Bearer " + jugador)).andExpect(status().isForbidden());
-        // Torneos: dos a la vez (categorías); el jugador no puede crearlos
-        String torneoJson = "{\"nombre\":\"Abierto FBA\",\"categoria\":\"Absoluto\",\"ciudad\":\"La Paz\",\"fechaInicio\":\"2026-12-01\"}";
-        llamar(post("/api/torneos"), jugador, torneoJson).andExpect(status().isForbidden());
-        long torneoId = leer(llamar(post("/api/torneos"), arbitro, torneoJson).andExpect(status().isCreated())).get("id").asLong();
-        long otroTorneo = leer(llamar(post("/api/torneos"), arbitro, "{\"nombre\":\"Abierto FBA\",\"categoria\":\"Sub-14\"}")
-                .andExpect(status().isCreated())).get("id").asLong();
-        llamar(post("/api/torneos"), arbitro, "{\"nombre\":\"\"}").andExpect(status().isBadRequest());
+        // Equipo: admin → organizador → árbitro principal → árbitros (con mesas)
+        asignar(tOrg, torneo, org, "ORGANIZADOR").andExpect(status().isForbidden());
+        asignar(admin, torneo, org, "ORGANIZADOR").andExpect(status().isCreated());
+        asignar(tOrg, torneo, arb1, "ARBITRO").andExpect(status().isForbidden());
+        asignar(tOrg, torneo, ap, "ARBITRO_PRINCIPAL").andExpect(status().isCreated());
+        asignar(tAp, torneo, arb1, "ARBITRO").andExpect(status().isCreated());
+        llamar(post("/api/torneos/" + torneo + "/asignaciones"), tAp,
+                "{\"usuarioId\":" + arb2 + ",\"rol\":\"ARBITRO\",\"mesas\":[2]}").andExpect(status().isCreated());
+        asignar(tAp, torneo, arb1, "ARBITRO").andExpect(status().isUnprocessableEntity()); // ya tiene rol
 
-        String partidaJson = "{\"torneoId\":" + torneoId + ",\"ronda\":1,\"blancas\":\"Ana\",\"negras\":\"Luis\"}";
-        llamar(post("/api/partidas"), jugador, partidaJson).andExpect(status().isForbidden());
-        llamar(post("/api/partidas"), arbitro, "{\"ronda\":1,\"blancas\":\"Ana\",\"negras\":\"Luis\"}").andExpect(status().isBadRequest());
-        llamar(post("/api/partidas"), arbitro, "{\"torneoId\":999,\"blancas\":\"Ana\",\"negras\":\"Luis\"}").andExpect(status().isNotFound());
+        // Cada uno ve solo sus torneos, con su rol
+        JsonNode deArb2 = leer(llamar(get("/api/torneos"), tArb2, null));
+        assert deArb2.size() == 1 && "ARBITRO".equals(deArb2.get(0).get("miRol").asText()) : deArb2;
+        llamar(get("/api/torneos/" + otro), tArb2, null).andExpect(status().isForbidden());
 
-        JsonNode creada = leer(llamar(post("/api/partidas"), arbitro, partidaJson).andExpect(status().isCreated()));
-        long id = creada.at("/partida/id").asLong();
-        assert "Abierto FBA".equals(creada.at("/partida/torneo").asText());
-        assert "Absoluto".equals(creada.at("/partida/categoria").asText());
+        // El organizador edita el torneo; el árbitro principal no
+        llamar(put("/api/torneos/" + torneo), tOrg, "{\"nombre\":\"Abierto FBA 2026\",\"categoria\":\"Absoluto\"}").andExpect(status().isOk());
+        llamar(put("/api/torneos/" + torneo), tAp, torneoJson).andExpect(status().isForbidden());
 
-        // Filtro por torneo y conteos
-        assert leer(llamar(get("/api/partidas?torneoId=" + torneoId), jugador, null)).size() == 1;
-        assert leer(llamar(get("/api/partidas?torneoId=" + otroTorneo), jugador, null)).size() == 0;
-        JsonNode torneo = leer(llamar(get("/api/torneos/" + torneoId), jugador, null).andExpect(status().isOk()));
-        assert torneo.get("partidas").asLong() == 1 && torneo.get("enCurso").asLong() == 1;
-        llamar(delete("/api/torneos/" + torneoId), admin, null).andExpect(status().isUnprocessableEntity());
-        llamar(delete("/api/torneos/" + otroTorneo), admin, null).andExpect(status().isNoContent());
+        // Solo el árbitro principal carga partidas y jugadores; una partida en curso por mesa
+        String mesa1 = "{\"torneoId\":" + torneo + ",\"mesa\":1,\"ronda\":1,\"blancas\":\"Ana\",\"negras\":\"Luis\"}";
+        llamar(post("/api/partidas"), tOrg, mesa1).andExpect(status().isForbidden());
+        long partida = leer(llamar(post("/api/partidas"), tAp, mesa1).andExpect(status().isCreated())).at("/partida/id").asLong();
+        llamar(post("/api/partidas"), tAp, mesa1).andExpect(status().isUnprocessableEntity());
+        llamar(post("/api/partidas"), tAp, "{\"torneoId\":" + torneo + ",\"mesa\":2,\"ronda\":1,\"blancas\":\"Eva\",\"negras\":\"Raúl\"}")
+                .andExpect(status().isCreated());
 
-        // Jugada ilegal rechazada, formato inválido y recurso inexistente
-        jugar(arbitro, id, "e2e5").andExpect(status().isUnprocessableEntity());
-        jugar(arbitro, id, "peon").andExpect(status().isBadRequest());
-        mvc.perform(get("/api/partidas/999").header("Authorization", "Bearer " + arbitro)).andExpect(status().isNotFound());
-        mvc.perform(get("/api/no-existe").header("Authorization", "Bearer " + arbitro)).andExpect(status().isNotFound());
+        // Vinculación: PIN de un solo torneo; cada celular recibe código y la primera mesa libre
+        llamar(post("/api/torneos/" + torneo + "/vinculacion"), tArb1, null).andExpect(status().isForbidden());
+        String pin = leer(llamar(post("/api/torneos/" + torneo + "/vinculacion"), tAp, null).andExpect(status().isOk())).get("pin").asText();
+        llamar(post("/api/dispositivo/vincular"), null, "{\"pin\":\"" + (pin.equals("000000") ? "111111" : "000000") + "\"}")
+                .andExpect(status().isUnauthorized());
+        JsonNode cel1 = leer(llamar(post("/api/dispositivo/vincular"), null, "{\"pin\":\"" + pin + "\"}").andExpect(status().isOk()));
+        assert "C-01".equals(cel1.get("codigo").asText()) && cel1.get("mesa").asInt() == 1 : cel1;
+        JsonNode cel2 = leer(llamar(post("/api/dispositivo/vincular"), null, "{\"pin\":\"" + pin + "\"}"));
+        assert "C-02".equals(cel2.get("codigo").asText()) && cel2.get("mesa").asInt() == 2 : cel2;
+        String d1 = cel1.get("token").asText();
+        mvc.perform(get("/api/dispositivo/estado")).andExpect(status().isUnauthorized());
+        JsonNode estado = leer(mvc.perform(get("/api/dispositivo/estado").header("X-Dispositivo", d1)).andExpect(status().isOk()));
+        assert estado.at("/partida/partida/id").asLong() == partida;
 
-        // Mate del loco: 1. f3 e5 2. g4 Qh4#
-        jugar(arbitro, id, "f2f3").andExpect(status().isOk());
-        jugar(arbitro, id, "e7e5").andExpect(status().isOk());
-        jugar(arbitro, id, "g2g4").andExpect(status().isOk());
-        JsonNode fin = leer(jugar(arbitro, id, "d8h4").andExpect(status().isOk()));
+        // El celular registra siempre la jugada más probable (mate del loco)
+        camara(d1, "f2f3", 0.9).andExpect(status().isOk());
+        camara(d1, "e7e5", 0.3).andExpect(status().isOk());
+        camara(d1, "e2e5", 0.9).andExpect(status().isUnprocessableEntity()); // ilegal
+        JsonNode p = leer(llamar(get("/api/partidas/" + partida), tArb1, null));
+        assert "C-01 · Mesa 1".equals(p.at("/jugadas/0/registradaPor").asText()) : p;
+        assert p.at("/permisos/arbitrar").asBoolean() && !p.at("/permisos/gestionar").asBoolean();
+
+        // Corrección desde la web: el árbitro de esa mesa reemplaza la jugada 2; el de otra mesa no puede
+        llamar(post("/api/partidas/" + partida + "/jugadas/2/corregir"), tArb2, "{\"uci\":\"e7e6\"}").andExpect(status().isForbidden());
+        llamar(get("/api/partidas/" + partida), tArb2, null).andExpect(status().isForbidden());
+        assert leer(llamar(get("/api/partidas?torneoId=" + torneo), tArb2, null)).size() == 1; // solo su mesa
+        JsonNode corregida = leer(llamar(post("/api/partidas/" + partida + "/jugadas/2/corregir"), tArb1, "{\"uci\":\"e7e6\"}")
+                .andExpect(status().isOk()));
+        assert "1. f3 e6 *".equals(corregida.at("/pgn").asText()) : corregida.at("/pgn").asText();
+        assert "Árbitro uno".equals(corregida.at("/jugadas/1/registradaPor").asText());
+
+        // El organizador ve, pero no finaliza; el celular termina la partida; el árbitro principal la reabre
+        llamar(get("/api/partidas/" + partida), tOrg, null).andExpect(status().isOk());
+        llamar(patch("/api/partidas/" + partida + "/resultado"), tOrg, "{\"resultado\":\"1-0\"}").andExpect(status().isForbidden());
+        JsonNode fin = leer(llamar(post("/api/dispositivo/resultado"), null, "{\"resultado\":\"1-0\"}", d1).andExpect(status().isOk()));
         assert "FINALIZADA".equals(fin.at("/partida/estado").asText());
-        assert "0-1".equals(fin.at("/partida/resultado").asText());
-        assert "1. f3 e5 2. g4 Qh4# 0-1".equals(fin.at("/pgn").asText()) : fin.at("/pgn").asText();
-        jugar(arbitro, id, "a2a3").andExpect(status().isUnprocessableEntity());
+        llamar(post("/api/partidas/" + partida + "/reabrir"), tArb1, null).andExpect(status().isForbidden());
+        llamar(post("/api/partidas/" + partida + "/reabrir"), tAp, null).andExpect(status().isOk());
 
-        // Deshacer reabre la partida
-        JsonNode des = leer(llamar(delete("/api/partidas/" + id + "/jugadas/ultima"), arbitro, null).andExpect(status().isOk()));
-        assert "EN_CURSO".equals(des.at("/partida/estado").asText());
-        assert des.at("/jugadas").size() == 3;
+        // Mesas de los celulares: el árbitro principal reasigna; dos celulares no comparten mesa
+        long idCel2 = leer(llamar(get("/api/torneos/" + torneo + "/dispositivos"), tAp, null)).get(1).get("id").asLong();
+        llamar(put("/api/dispositivos/" + idCel2 + "/mesa"), tAp, "{\"mesa\":1}").andExpect(status().isUnprocessableEntity());
+        llamar(put("/api/dispositivos/" + idCel2 + "/mesa"), tArb1, "{\"mesa\":3}").andExpect(status().isForbidden());
+        llamar(put("/api/dispositivos/" + idCel2 + "/mesa"), tAp, "{\"mesa\":3}").andExpect(status().isOk());
 
-        // El jugador sí puede consultar
-        mvc.perform(get("/api/partidas/" + id).header("Authorization", "Bearer " + jugador)).andExpect(status().isOk());
-        JsonNode dash = leer(mvc.perform(get("/api/dashboard").header("Authorization", "Bearer " + admin)).andExpect(status().isOk()));
-        assert dash.at("/jugadasVision").asLong() == 3;
-
-        // Reportes: los genera el árbitro, no el jugador
-        byte[] pdf = mvc.perform(get("/api/reportes/partidas.pdf?torneoId=" + torneoId).header("Authorization", "Bearer " + arbitro))
+        // Reportes: cualquier rol del torneo; el de todos los torneos, solo el administrador
+        byte[] pdf = llamar(get("/api/reportes/partidas.pdf?torneoId=" + torneo), tArb1, null)
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
         assert new String(pdf, 0, 5).equals("%PDF-");
-        byte[] planilla = mvc.perform(get("/api/reportes/partidas/" + id + ".pdf").header("Authorization", "Bearer " + arbitro))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
-        assert new String(planilla, 0, 5).equals("%PDF-");
-        byte[] xlsx = mvc.perform(get("/api/reportes/partidas.xlsx").header("Authorization", "Bearer " + arbitro))
-                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
-        assert xlsx[0] == 'P' && xlsx[1] == 'K'; // zip
-        mvc.perform(get("/api/reportes/partidas.pdf").header("Authorization", "Bearer " + jugador)).andExpect(status().isForbidden());
+        llamar(get("/api/reportes/partidas.pdf"), tOrg, null).andExpect(status().isForbidden());
+        byte[] xlsx = llamar(get("/api/reportes/partidas.xlsx"), admin, null).andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+        assert xlsx[0] == 'P' && xlsx[1] == 'K';
+        llamar(get("/api/reportes/partidas/" + partida + ".pdf"), tOrg, null).andExpect(status().isOk());
 
-        // No se puede borrar al único admin
+        // Desvincular: el token del celular deja de servir
+        long idCel1 = leer(llamar(get("/api/torneos/" + torneo + "/dispositivos"), tAp, null)).get(0).get("id").asLong();
+        llamar(delete("/api/dispositivos/" + idCel1), tOrg, null).andExpect(status().isForbidden());
+        llamar(delete("/api/dispositivos/" + idCel1), tArb1, null).andExpect(status().isNoContent());
+        mvc.perform(get("/api/dispositivo/estado").header("X-Dispositivo", d1)).andExpect(status().isUnauthorized());
+
+        // Torneos: solo el administrador elimina, y solo sin partidas
+        llamar(delete("/api/torneos/" + otro), tOrg, null).andExpect(status().isForbidden());
+        llamar(delete("/api/torneos/" + torneo), admin, null).andExpect(status().isUnprocessableEntity());
+        llamar(delete("/api/torneos/" + otro), admin, null).andExpect(status().isNoContent());
+
+        // Directorio para elegir árbitros; no se puede borrar al único administrador
+        assert leer(llamar(get("/api/usuarios/directorio"), tAp, null)).size() == 5;
+        llamar(get("/api/usuarios"), tAp, null).andExpect(status().isForbidden());
         long adminId = leer(mvc.perform(get("/api/auth/yo").header("Authorization", "Bearer " + admin))).at("/id").asLong();
         llamar(delete("/api/usuarios/" + adminId), admin, null).andExpect(status().isUnprocessableEntity());
     }
 
-    private ResultActions jugar(String token, long id, String uci) throws Exception {
-        return llamar(post("/api/partidas/" + id + "/jugadas"), token,
-                "{\"uci\":\"" + uci + "\",\"origen\":\"VISION\",\"confianza\":0.9}");
+    private long usuario(String admin, String nombre, String email) throws Exception {
+        return leer(llamar(post("/api/usuarios"), admin,
+                "{\"nombre\":\"" + nombre + "\",\"email\":\"" + email + "\",\"password\":\"clave123\",\"rol\":\"USUARIO\"}")
+                .andExpect(status().isCreated())).get("id").asLong();
+    }
+
+    private ResultActions asignar(String token, long torneo, long usuario, String rol) throws Exception {
+        return llamar(post("/api/torneos/" + torneo + "/asignaciones"), token, "{\"usuarioId\":" + usuario + ",\"rol\":\"" + rol + "\"}");
+    }
+
+    private ResultActions camara(String dispositivo, String uci, double confianza) throws Exception {
+        return llamar(post("/api/dispositivo/jugadas"), null, "{\"uci\":\"" + uci + "\",\"confianza\":" + confianza + "}", dispositivo);
     }
 
     private String login(String email, String password) throws Exception {
@@ -125,7 +168,12 @@ class FlujoApiTest {
     }
 
     private ResultActions llamar(MockHttpServletRequestBuilder req, String token, String cuerpo) throws Exception {
+        return llamar(req, token, cuerpo, null);
+    }
+
+    private ResultActions llamar(MockHttpServletRequestBuilder req, String token, String cuerpo, String dispositivo) throws Exception {
         if (token != null) req.header("Authorization", "Bearer " + token);
+        if (dispositivo != null) req.header("X-Dispositivo", dispositivo);
         if (cuerpo != null) req.contentType(MediaType.APPLICATION_JSON).content(cuerpo);
         return mvc.perform(req);
     }

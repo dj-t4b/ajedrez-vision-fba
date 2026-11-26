@@ -41,9 +41,14 @@ public class Jugada {
     @Column(name = "registrada_en", nullable = false)
     private LocalDateTime registradaEn = LocalDateTime.now();
 
+    /** Quién la registró: el código del celular (C-07 · Mesa 3) o el nombre del árbitro. */
+    @Column(name = "registrada_por", length = 100)
+    private String registradaPor;
+
     protected Jugada() {}
 
-    public Jugada(Partida partida, int numero, String uci, String san, String fenResultante, Origen origen, Double confianza) {
+    public Jugada(Partida partida, int numero, String uci, String san, String fenResultante, Origen origen, Double confianza, String registradaPor) {
+        this.registradaPor = registradaPor;
         this.partida = partida;
         this.numero = numero;
         this.uci = uci;
@@ -62,4 +67,5 @@ public class Jugada {
     public Origen getOrigen() { return origen; }
     public Double getConfianza() { return confianza; }
     public LocalDateTime getRegistradaEn() { return registradaEn; }
+    public String getRegistradaPor() { return registradaPor; }
 }

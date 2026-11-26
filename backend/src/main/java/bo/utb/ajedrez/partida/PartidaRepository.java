@@ -4,6 +4,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface PartidaRepository extends JpaRepository<Partida, Long> {
 
@@ -12,6 +13,7 @@ public interface PartidaRepository extends JpaRepository<Partida, Long> {
             + " and (:torneoId is null or p.torneo.id = :torneoId) order by p.creadaEn desc")
     List<Partida> buscar(Partida.Estado estado, Long torneoId);
 
+    Optional<Partida> findFirstByTorneoIdAndMesaAndEstadoOrderByCreadaEnDesc(Long torneoId, Integer mesa, Partida.Estado estado);
     long countByEstado(Partida.Estado estado);
     long countByTorneoId(Long torneoId);
     long countByTorneoIdAndEstado(Long torneoId, Partida.Estado estado);

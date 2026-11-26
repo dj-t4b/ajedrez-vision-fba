@@ -27,6 +27,16 @@ public class UsuarioController {
         return service.listar().stream().map(UsuarioResponse::de).toList();
     }
 
+    /** Nombre y email de los usuarios activos, para elegir a quién asignar un rol en un torneo. */
+    public record Persona(Long id, String nombre, String email) {}
+
+    @GetMapping("/directorio")
+    @PreAuthorize("isAuthenticated()")
+    public List<Persona> directorio() {
+        return service.listar().stream().filter(Usuario::isActivo)
+                .map(u -> new Persona(u.getId(), u.getNombre(), u.getEmail())).toList();
+    }
+
     @GetMapping("/{id}")
     public UsuarioResponse obtener(@PathVariable Long id) {
         return UsuarioResponse.de(service.obtener(id));

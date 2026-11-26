@@ -1,3 +1,4 @@
 package bo.utb.ajedrez.usuario;
 
-public enum Rol { ADMIN, ARBITRO, JUGADOR }
+/** Rol global: ADMIN administra el sistema; los demás son USUARIO y reciben roles por torneo. */
+public enum Rol { ADMIN, USUARIO }

@@ -28,6 +28,13 @@ public class Torneo {
     @Column(name = "creado_en", nullable = false)
     private LocalDateTime creadoEn = LocalDateTime.now();
 
+    /** Vinculación de celulares abierta: hash del PIN y hasta cuándo vale. */
+    @Column(name = "vinculacion_pin_hash", length = 64)
+    private String vinculacionPinHash;
+
+    @Column(name = "vinculacion_vence_en")
+    private LocalDateTime vinculacionVenceEn;
+
     public Long getId() { return id; }
     public String getNombre() { return nombre; }
     public void setNombre(String nombre) { this.nombre = nombre; }
@@ -38,4 +45,8 @@ public class Torneo {
     public LocalDate getFechaInicio() { return fechaInicio; }
     public void setFechaInicio(LocalDate fechaInicio) { this.fechaInicio = fechaInicio; }
     public LocalDateTime getCreadoEn() { return creadoEn; }
+    public String getVinculacionPinHash() { return vinculacionPinHash; }
+    public void setVinculacionPinHash(String h) { this.vinculacionPinHash = h; }
+    public LocalDateTime getVinculacionVenceEn() { return vinculacionVenceEn; }
+    public void setVinculacionVenceEn(LocalDateTime v) { this.vinculacionVenceEn = v; }
 }

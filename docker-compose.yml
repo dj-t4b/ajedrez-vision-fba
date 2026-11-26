@@ -30,6 +30,7 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@fba.bo}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
       CORS_ORIGENES: ${CORS_ORIGENES:-http://localhost:5173}
+      SERVIDOR_PUBLICO: ${SERVIDOR_PUBLICO:-http://localhost:8080/ajedrez}
       TZ: America/La_Paz
     ports:
       - "8080:8080"
