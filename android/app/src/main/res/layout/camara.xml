@@ -5,6 +5,18 @@
     android:orientation="vertical"
     android:background="@color/tinta">
 
+    <!-- Identificador del celular y su mesa, visible para el árbitro -->
+    <TextView
+        android:id="@+id/identidad"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:paddingVertical="8dp"
+        android:text="—"
+        android:textColor="#FFFFFF"
+        android:textSize="30sp"
+        android:textStyle="bold" />
+
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -66,10 +78,10 @@
             android:text="Deshacer" />
 
         <Button
-            android:id="@+id/jugada"
+            android:id="@+id/terminar"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1.4"
-            android:text="Registrar jugada" />
+            android:text="Terminar partida" />
     </LinearLayout>
 </LinearLayout>

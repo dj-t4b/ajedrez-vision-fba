@@ -1,48 +1,47 @@
 package bo.utb.ajedrez.app
 
 import android.content.Context
-import org.json.JSONArray
+import android.net.Uri
 import org.json.JSONObject
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
-class ErrorApi(mensaje: String) : Exception(mensaje)
+class ErrorApi(mensaje: String, val desvinculado: Boolean = false) : Exception(mensaje)
 
-/** Cliente mínimo de la API REST (la misma que usa el panel web). Llamar fuera del hilo principal. */
+/**
+ * Cliente del celular de una mesa. No hay cuenta de usuario: el celular se vincula a un torneo con el
+ * QR o el PIN que muestra la web y desde ahí usa su propio token. Llamar fuera del hilo principal.
+ */
 class Api(contexto: Context) {
 
-    private val prefs = contexto.getSharedPreferences("sesion", Context.MODE_PRIVATE)
+    private val prefs = contexto.getSharedPreferences("dispositivo", Context.MODE_PRIVATE)
 
     var servidor: String
-        get() = prefs.getString("servidor", "http://192.168.1.10:8080/ajedrez")!!
-        set(v) = prefs.edit().putString("servidor", v.trimEnd('/')).apply()
+        get() = prefs.getString("servidor", "http://localhost:8080/ajedrez")!!
+        set(v) = prefs.edit().putString("servidor", v.trim().trimEnd('/')).apply()
 
     var token: String?
         get() = prefs.getString("token", null)
         set(v) = prefs.edit().putString("token", v).apply()
 
-    fun login(email: String, password: String): JSONObject {
-        val r = JSONObject(pedir("POST", "/api/auth/login", JSONObject().put("email", email).put("password", password)))
-        if (r.getString("rol") == "JUGADOR") throw ErrorApi("Solo árbitros y administradores registran jugadas")
+    /** Canjea el PIN por un token de este celular. */
+    fun vincular(pin: String): JSONObject {
+        val r = JSONObject(pedir("POST", "/api/dispositivo/vincular", JSONObject().put("pin", pin.trim())))
         token = r.getString("token")
         return r
     }
 
-    fun torneos() = JSONArray(pedir("GET", "/api/torneos"))
+    /** Código, mesa y la partida en curso de la mesa (o null). */
+    fun estado() = JSONObject(pedir("GET", "/api/dispositivo/estado"))
 
-    fun partidasEnCurso(torneoId: Long) = JSONArray(pedir("GET", "/api/partidas?estado=EN_CURSO&torneoId=$torneoId"))
+    fun registrarJugada(uci: String, confianza: Double) =
+        JSONObject(pedir("POST", "/api/dispositivo/jugadas", JSONObject().put("uci", uci).put("confianza", confianza)))
 
-    fun partida(id: Long) = JSONObject(pedir("GET", "/api/partidas/$id"))
+    fun deshacer() = JSONObject(pedir("DELETE", "/api/dispositivo/jugadas/ultima"))
 
-    fun registrarJugada(id: Long, uci: String, confianza: Double?) = JSONObject(
-        pedir("POST", "/api/partidas/$id/jugadas", JSONObject()
-            .put("uci", uci)
-            .put("origen", if (confianza == null) "MANUAL" else "VISION")
-            .put("confianza", confianza ?: JSONObject.NULL))
-    )
-
-    fun deshacer(id: Long) = JSONObject(pedir("DELETE", "/api/partidas/$id/jugadas/ultima"))
+    fun terminar(resultado: String) =
+        JSONObject(pedir("POST", "/api/dispositivo/resultado", JSONObject().put("resultado", resultado)))
 
     private fun pedir(metodo: String, ruta: String, cuerpo: JSONObject? = null): String {
         val con = try {
@@ -54,7 +53,7 @@ class Api(contexto: Context) {
             con.requestMethod = metodo
             con.connectTimeout = 5000
             con.readTimeout = 10000
-            token?.let { con.setRequestProperty("Authorization", "Bearer $it") }
+            token?.let { con.setRequestProperty("X-Dispositivo", it) }
             if (cuerpo != null) {
                 con.doOutput = true
                 con.setRequestProperty("Content-Type", "application/json")
@@ -62,16 +61,28 @@ class Api(contexto: Context) {
             }
             val codigo = con.responseCode
             val texto = (if (codigo < 400) con.inputStream else con.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
-            if (codigo == 401 && ruta != "/api/auth/login") token = null
             if (codigo >= 400) {
                 val detalle = runCatching { JSONObject(texto).optString("detail") }.getOrNull()
-                throw ErrorApi(if (detalle.isNullOrBlank()) "Error $codigo del servidor" else detalle)
+                val desvinculado = codigo == 401 && ruta != "/api/dispositivo/vincular"
+                if (desvinculado) token = null
+                throw ErrorApi(if (detalle.isNullOrBlank()) "Error $codigo del servidor" else detalle, desvinculado)
             }
             return texto
         } catch (e: IOException) {
-            throw ErrorApi("No hay conexión con $servidor. ¿El celular está en la misma red que el PC?")
+            throw ErrorApi("No hay conexión con $servidor. ¿El celular está en la misma red que el servidor?")
         } finally {
             con.disconnect()
+        }
+    }
+
+    companion object {
+        /** El QR de la web: ajedrezfba://vincular?s=<servidor>&p=<pin>. Devuelve (servidor, pin) o null. */
+        fun leerQr(texto: String): Pair<String, String>? {
+            if (!texto.startsWith("ajedrezfba://vincular")) return null
+            val uri = Uri.parse(texto)
+            val s = uri.getQueryParameter("s") ?: return null
+            val p = uri.getQueryParameter("p") ?: return null
+            return s to p
         }
     }
 }

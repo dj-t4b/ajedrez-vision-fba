@@ -18,8 +18,36 @@ classDiagram
     class Rol {
         <<enumeration>>
         ADMIN
+        USUARIO
+    }
+    class Asignacion {
+        -Long id
+        -RolTorneo rol
+        -Set~Integer~ mesas
+        +atiendeMesa(Integer) boolean
+    }
+    class RolTorneo {
+        <<enumeration>>
+        ORGANIZADOR
+        ARBITRO_PRINCIPAL
         ARBITRO
-        JUGADOR
+    }
+    class Dispositivo {
+        -Long id
+        -String codigo
+        -int mesa
+        -String tokenHash
+        -boolean revocado
+    }
+    class Acceso {
+        +puede(Jwt, torneoId, Permiso) boolean
+        +puedeArbitrar(Jwt, torneoId, mesa) boolean
+    }
+    class DispositivoService {
+        +vincular(pin) Vinculado
+        +autenticar(token) Dispositivo
+        +cambiarMesa(id, mesa)
+        +desvincular(id)
     }
     class Torneo {
         -Long id
@@ -98,6 +126,13 @@ classDiagram
     Partida "1" *-- "0..*" Jugada : jugadas
     Partida "0..*" --> "1" Usuario : registradaPor
     Partida "0..*" --> "1" Torneo : torneo
+    Asignacion "0..*" --> "1" Usuario
+    Asignacion "0..*" --> "1" Torneo
+    Asignacion --> RolTorneo
+    Dispositivo "0..*" --> "1" Torneo
+    PartidaController --> Acceso
+    Acceso --> Asignacion
+    DispositivoService --> PartidaService
     class TorneoService {
         +listar() List~TorneoResponse~
         +crear(TorneoRequest) TorneoResponse
@@ -129,7 +164,9 @@ classDiagram
         -Mat referencia
         -String fen
         +buscarTableroAuto()
-        +leerJugada()
+        +vigilar()
+        +seguirEstado()
+        +terminar()
         +deshacer()
     }
     class Vision {
@@ -152,17 +189,17 @@ classDiagram
         +deducir(String fen, DoubleArray cambios) Resultado
     }
     class Api {
-        +login(email, password)
-        +partidasEnCurso()
-        +registrarJugada(id, uci, confianza)
-        +deshacer(id)
+        +vincular(pin)
+        +estado()
+        +terminar(resultado)
+        +registrarJugada(uci, confianza)
+        +deshacer()
     }
-    class LoginActivity
-    class PartidasActivity
+    class VincularActivity
+
     class Marcas
 
-    LoginActivity --> Api
-    PartidasActivity --> Api
+    VincularActivity --> Api
     CamaraActivity --> Api
     CamaraActivity --> Vision
     CamaraActivity --> Deduccion

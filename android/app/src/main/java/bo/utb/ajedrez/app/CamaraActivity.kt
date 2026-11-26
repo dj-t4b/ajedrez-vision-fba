@@ -3,6 +3,7 @@ package bo.utb.ajedrez.app
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.AlertDialog
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Bundle
@@ -33,25 +34,27 @@ import org.opencv.imgcodecs.Imgcodecs
 import java.io.File
 
 /**
- * Pantalla del árbitro: el celular queda fijo (inclinado) frente al tablero. El tablero se ubica solo
- * en la posición inicial (sin marcadores); si no lo encuentra, se calibra tocando las 4 esquinas.
- * Después de cada jugada se toca "Registrar jugada" y la app deduce cuál fue.
+ * Pantalla del celular de una mesa: queda fijo (inclinado) frente al tablero. Muestra su código y su
+ * mesa, toma sola la partida que el árbitro principal carga para esa mesa, ubica el tablero en la
+ * posición inicial y registra cada jugada cuando la imagen queda quieta.
  */
 class CamaraActivity : ComponentActivity() {
 
     private lateinit var api: Api
     private lateinit var vista: PreviewView
     private lateinit var marcas: Marcas
+    private lateinit var identidad: TextView
     private lateinit var estado: TextView
+    private lateinit var aviso: TextView
     private var camara: Camera? = null
-    private var partidaId = 0L
+
+    private var partidaId: Long? = null
     private var fen = ""
     private var referencia: Mat? = null          // tablero enderezado de la última posición confirmada
     private var referenciaAnterior: Mat? = null  // para volver atrás si se deshace una jugada
     private var calibrando = false
     private var buscando = false
     private var ocupado = false                 // diálogo abierto o jugada enviándose
-    private lateinit var aviso: TextView
 
     private val pedirCamara = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         if (ok) iniciarCamara() else estado.text = "Sin permiso de cámara no se pueden leer jugadas."
@@ -62,9 +65,9 @@ class CamaraActivity : ComponentActivity() {
         super.onCreate(guardado)
         setContentView(R.layout.camara)
         api = Api(this)
-        partidaId = intent.getLongExtra("id", 0)
         vista = findViewById(R.id.vista)
         marcas = findViewById(R.id.marcas)
+        identidad = findViewById(R.id.identidad)
         estado = findViewById(R.id.estado)
         aviso = findViewById(R.id.aviso)
 
@@ -78,15 +81,11 @@ class CamaraActivity : ComponentActivity() {
         }
         // Pulsación larga: volver a buscar el tablero automáticamente
         findViewById<Button>(R.id.calibrar).setOnLongClickListener {
-            calibrando = false
-            marcas.limpiar()
-            soltarReferencias()
-            estado.text = "Buscando el tablero en posición inicial…"
+            reiniciarDeteccion("Buscando el tablero en posición inicial…")
             true
         }
-        findViewById<Button>(R.id.jugada).setOnClickListener { leerJugada(elegirSiempre = false) }
-        findViewById<Button>(R.id.jugada).setOnLongClickListener { leerJugada(elegirSiempre = true); true }
         findViewById<Button>(R.id.deshacer).setOnClickListener { deshacer() }
+        findViewById<Button>(R.id.terminar).setOnClickListener { terminar() }
 
         marcas.setOnTouchListener { _, e ->
             if (calibrando && e.action == MotionEvent.ACTION_UP) {
@@ -103,7 +102,7 @@ class CamaraActivity : ComponentActivity() {
 
         if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) iniciarCamara()
         else pedirCamara.launch(Manifest.permission.CAMERA)
-        cargarPartida()
+        seguirEstado()
         buscarTableroAuto()
         vigilar()
     }
@@ -119,13 +118,66 @@ class CamaraActivity : ComponentActivity() {
     }
 
     /**
-     * Mientras el tablero no esté ubicado, lo busca en el video cada 0,7 s. Necesita la posición inicial
-     * (centro vacío); una vez ubicado, el celular debe quedar quieto.
+     * Cada 2,5 s pregunta al servidor su mesa y la partida en curso en ella. Así toma sola la partida
+     * nueva de la mesa y se entera si un árbitro corrigió una jugada desde la web.
+     */
+    private fun seguirEstado() = lifecycleScope.launch {
+        while (isActive) {
+            try {
+                val e = withContext(Dispatchers.IO) { api.estado() }
+                identidad.text = "${e.getString("codigo")} · Mesa ${e.getInt("mesa")}"
+                if (!ocupado) aplicarEstado(e.optJSONObject("partida"), e.getInt("mesa"))
+            } catch (ex: ErrorApi) {
+                if (ex.desvinculado) return@launch volverAVincular()
+                estado.text = ex.message
+            }
+            delay(2500)
+        }
+    }
+
+    private fun aplicarEstado(detalle: JSONObject?, mesa: Int) {
+        if (detalle == null) {
+            if (partidaId != null) reiniciarDeteccion("")
+            partidaId = null
+            estado.text = "Esperando que el árbitro principal cargue la partida de la mesa $mesa."
+            return
+        }
+        val p = detalle.getJSONObject("partida")
+        val id = p.getLong("id")
+        if (id != partidaId) {
+            // Partida nueva en esta mesa: empieza en la posición inicial, se vuelve a ubicar el tablero
+            partidaId = id
+            fen = p.getString("fenActual")
+            reiniciarDeteccion("")
+        } else if (p.getString("fenActual") != fen) {
+            // Un árbitro corrigió desde la web: la foto actual pasa a ser la posición de referencia
+            Log.i("Ajedrez", "posición corregida desde la web")
+            fen = p.getString("fenActual")
+            capturar()?.let { nueva -> soltarReferencias(); referencia = nueva }
+        }
+        mostrar(detalle)
+    }
+
+    private fun volverAVincular() {
+        startActivity(Intent(this, VincularActivity::class.java))
+        finish()
+    }
+
+    private fun reiniciarDeteccion(mensaje: String) {
+        calibrando = false
+        marcas.limpiar()
+        soltarReferencias()
+        if (mensaje.isNotEmpty()) estado.text = mensaje
+    }
+
+    /**
+     * Mientras el tablero no esté ubicado y haya una partida, lo busca en el video cada 0,7 s.
+     * Necesita la posición inicial; una vez ubicado, el celular debe quedar quieto.
      */
     private fun buscarTableroAuto() = lifecycleScope.launch {
         while (isActive) {
             delay(700)
-            if (calibrando || referencia != null || buscando) continue
+            if (partidaId == null || calibrando || referencia != null || buscando) continue
             val foto = vista.bitmap ?: continue
             buscando = true
             val encontradas = withContext(Dispatchers.Default) {
@@ -156,7 +208,7 @@ class CamaraActivity : ComponentActivity() {
             referencia = capturar()
             buscando = false
             estado.text = if (referencia == null) "No se pudo capturar la imagen; calibre de nuevo."
-            else "$motivo Después de cada jugada toque «Registrar jugada»."
+            else "$motivo Las jugadas se registran solas."
         }
     }
 
@@ -172,27 +224,10 @@ class CamaraActivity : ComponentActivity() {
         )
     }
 
-    private fun cargarPartida() = lifecycleScope.launch {
-        try {
-            mostrar(withContext(Dispatchers.IO) { api.partida(partidaId) })
-            if (referencia == null) estado.text = "${estado.text}\nBuscando el tablero en posición inicial… o toque «Calibrar»."
-        } catch (e: ErrorApi) {
-            estado.text = e.message
-        }
-    }
-
     private fun capturar(): Mat? {
         val foto = vista.bitmap ?: return null
         if (marcas.esquinas.size != 4) return null
         return Vision.enderezar(foto, marcas.esquinas)
-    }
-
-    /** Botón «Registrar jugada» (respaldo del registro automático). */
-    private fun leerJugada(elegirSiempre: Boolean) {
-        if (referencia == null) { estado.text = "Todavía no se ubicó el tablero."; return }
-        if (ocupado) return
-        val actual = capturar() ?: run { estado.text = "La cámara todavía no tiene imagen."; return }
-        evaluar(actual, elegirSiempre, automatico = false)
     }
 
     /**
@@ -205,7 +240,7 @@ class CamaraActivity : ComponentActivity() {
         var huboMovimiento = false
         while (isActive) {
             delay(350)
-            if (referencia == null || calibrando || ocupado) {
+            if (referencia == null || partidaId == null || calibrando || ocupado) {
                 previo?.release(); previo = null; quietos = 0; huboMovimiento = false
                 continue
             }
@@ -222,7 +257,7 @@ class CamaraActivity : ComponentActivity() {
             quietos++
             if (huboMovimiento && quietos >= CUADROS_QUIETOS) {
                 // Si la mano sigue tapando el tablero (muchas casillas distintas), se sigue esperando
-                if (evaluar(actual, elegirSiempre = false, automatico = true)) huboMovimiento = false
+                if (evaluar(actual)) huboMovimiento = false
             } else {
                 actual.release()
             }
@@ -231,56 +266,44 @@ class CamaraActivity : ComponentActivity() {
     }
 
     /**
-     * Deduce la jugada de [actual] contra la referencia y la registra o pregunta. Se queda con [actual].
-     * @return false si parece que algo todavía tapa el tablero (solo en modo automático)
+     * Deduce la jugada de [actual] contra la referencia y registra siempre la más probable con su
+     * confianza; las dudosas quedan marcadas en la web para que el árbitro las corrija. Se queda con [actual].
+     * @return false si parece que algo todavía tapa el tablero
      */
-    private fun evaluar(actual: Mat, elegirSiempre: Boolean, automatico: Boolean): Boolean {
+    private fun evaluar(actual: Mat): Boolean {
         val ref = referencia ?: run { actual.release(); return true }
         val cambios = Vision.cambios(ref, actual, Geometria.ladoCercano(marcas.esquinas))
-        if (automatico && cambios.count { it > Deduccion.UMBRAL_MOVIMIENTO } > MAX_CASILLAS_CAMBIADAS) {
+        if (cambios.count { it > Deduccion.UMBRAL_MOVIMIENTO } > MAX_CASILLAS_CAMBIADAS) {
             actual.release()
             return false
         }
         val r = Deduccion.deducir(fen, cambios)
-        Log.i("Ajedrez", "${if (automatico) "auto" else "botón"} candidatas=${r.candidatas} confianza=${r.confianza}")
+        Log.i("Ajedrez", "candidatas=${r.candidatas} confianza=${r.confianza}")
         Log.i("Ajedrez", "cambios a8..h1:\n" + cambios.toList().chunked(8).joinToString("\n") { f -> f.joinToString(" ") { "%3.0f".format(it) } })
         // Tableros enderezados antes/después, para revisar la lectura desde el PC con adb pull
         getExternalFilesDir(null)?.let { dir ->
             Imgcodecs.imwrite(File(dir, "antes.png").path, ref)
             Imgcodecs.imwrite(File(dir, "despues.png").path, actual)
         }
-
         val mejor = r.mejor
         if (mejor == null) {
-            // En automático, la mano pasó sin mover nada: no se avisa
-            if (!automatico) estado.text = "No se ve ningún cambio en el tablero. ¿Se movió una pieza?"
-            actual.release()
+            actual.release() // la mano pasó sin mover nada
             return true
         }
-        if (!elegirSiempre && r.confianza >= 0.5) {
-            enviar(mejor, r.confianza, actual)
-            return true
-        }
-        // Confianza baja: el árbitro elige entre las jugadas más probables
-        ocupado = true
-        val etiquetas = r.candidatas.mapIndexed { i, c -> if (i == 0) "${c.san}   (más probable)" else c.san }.toTypedArray()
-        AlertDialog.Builder(this)
-            .setTitle("¿Cuál fue la jugada? (confianza ${(r.confianza * 100).toInt()}%)")
-            .setItems(etiquetas) { _, i -> enviar(r.candidatas[i], r.confianza, actual) }
-            .setNegativeButton("Ninguna") { _, _ -> actual.release(); ocupado = false }
-            .setOnCancelListener { actual.release(); ocupado = false }
-            .show()
+        enviar(mejor, r.confianza, actual)
         return true
     }
 
     private fun enviar(jugada: Deduccion.Candidata, confianza: Double, actual: Mat) = lifecycleScope.launch {
         ocupado = true
         try {
-            mostrar(withContext(Dispatchers.IO) { api.registrarJugada(partidaId, jugada.uci, confianza) })
+            val d = withContext(Dispatchers.IO) { api.registrarJugada(jugada.uci, confianza) }
+            fen = d.getJSONObject("partida").getString("fenActual")
+            mostrar(d)
             referenciaAnterior?.release()
             referenciaAnterior = referencia
             referencia = actual
-            avisar(jugada.san)
+            avisar(jugada.san, dudosa = confianza < 0.5)
         } catch (e: ErrorApi) {
             estado.text = "No se registró ${jugada.san}: ${e.message}"
             actual.release()
@@ -289,10 +312,11 @@ class CamaraActivity : ComponentActivity() {
         }
     }
 
-    /** Muestra la jugada registrada grande y en verde en el centro de la pantalla, sin sonido. */
-    private fun avisar(san: String) {
+    /** Muestra la jugada registrada grande en el centro, sin sonido: verde, o ámbar si quedó para revisar. */
+    private fun avisar(san: String, dudosa: Boolean) {
         aviso.animate().cancel()
-        aviso.text = san
+        aviso.text = if (dudosa) "$san ?" else san
+        aviso.setTextColor(if (dudosa) 0xFFFBBF24.toInt() else 0xFF4ADE80.toInt())
         aviso.alpha = 1f
         aviso.visibility = View.VISIBLE
         aviso.animate().alpha(0f).setStartDelay(1800).setDuration(500)
@@ -300,10 +324,42 @@ class CamaraActivity : ComponentActivity() {
     }
 
     private fun deshacer() = lifecycleScope.launch {
+        ocupado = true
         try {
-            mostrar(withContext(Dispatchers.IO) { api.deshacer(partidaId) })
+            val d = withContext(Dispatchers.IO) { api.deshacer() }
+            fen = d.getJSONObject("partida").getString("fenActual")
+            mostrar(d)
             referenciaAnterior?.let { referencia?.release(); referencia = it; referenciaAnterior = null }
-            estado.text = "${estado.text}\nDeshecha. Toque largo en «Registrar jugada» para elegirla."
+        } catch (e: ErrorApi) {
+            estado.text = e.message
+        } finally {
+            ocupado = false
+        }
+    }
+
+    /** «Terminar partida»: elegir el resultado y confirmar, para no cerrar por un toque accidental. */
+    private fun terminar() {
+        if (partidaId == null) { estado.text = "No hay una partida en curso en esta mesa."; return }
+        val resultados = arrayOf("1-0", "0-1", "1/2-1/2")
+        val textos = arrayOf("1-0  (ganan blancas)", "0-1  (ganan negras)", "½-½  (tablas)")
+        AlertDialog.Builder(this)
+            .setTitle("Terminar la partida")
+            .setItems(textos) { _, i ->
+                AlertDialog.Builder(this)
+                    .setMessage("¿Terminar la partida con ${textos[i].substringBefore("  ")}?")
+                    .setPositiveButton("Terminar") { _, _ -> enviarResultado(resultados[i]) }
+                    .setNegativeButton("Cancelar", null)
+                    .show()
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun enviarResultado(resultado: String) = lifecycleScope.launch {
+        try {
+            val d = withContext(Dispatchers.IO) { api.terminar(resultado) }
+            mostrar(d)
+            avisar(d.getJSONObject("partida").getString("resultado").replace("1/2-1/2", "½-½"), dudosa = false)
         } catch (e: ErrorApi) {
             estado.text = e.message
         }
@@ -311,14 +367,14 @@ class CamaraActivity : ComponentActivity() {
 
     private fun mostrar(detalle: JSONObject) {
         val p = detalle.getJSONObject("partida")
-        fen = p.getString("fenActual")
         val jugadas = detalle.getJSONArray("jugadas")
         val ultima = if (jugadas.length() > 0) jugadas.getJSONObject(jugadas.length() - 1).getString("san") else "—"
-        val turno = if (fen.split(" ")[1] == "w") "blancas" else "negras"
-        estado.text = if (p.getString("estado") == "FINALIZADA") {
-            "${p.getString("blancas")} – ${p.getString("negras")}: partida terminada ${p.getString("resultado")}"
-        } else {
-            "${p.getString("blancas")} – ${p.getString("negras")} · última: $ultima · juegan $turno"
+        val turno = if (p.getString("fenActual").split(" ")[1] == "w") "blancas" else "negras"
+        val pareja = "${p.getString("blancas")} – ${p.getString("negras")}"
+        estado.text = when {
+            p.getString("estado") == "FINALIZADA" -> "$pareja: partida terminada ${p.getString("resultado")}"
+            referencia == null && !calibrando -> "$pareja\nArme la posición inicial: el tablero se ubica solo."
+            else -> "$pareja · última: $ultima · juegan $turno"
         }
     }
 

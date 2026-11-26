@@ -100,11 +100,11 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 
 El APK ya compilado está en la sección **Releases** del repositorio.
 
-**Uso:** crear el torneo y la partida en el panel web. En la app elegir torneo → partida, con el tablero en la posición inicial y el celular fijo en un soporte (puede estar inclinado). La cuadrícula verde aparece sola.
+**Uso:** el administrador crea el torneo y nombra al organizador; el organizador nombra al árbitro principal; el árbitro principal designa árbitros, carga las partidas por mesa con los jugadores y abre la **vinculación de celulares** en la pestaña Celulares del torneo. Cada celular escanea el QR (o escribe el PIN): recibe un código (C-07) y una mesa, que muestra arriba en grande. Con el tablero en la posición inicial y el celular fijo en un soporte (puede estar inclinado), la cuadrícula verde aparece sola.
 
-**Registro automático:** no hace falta tocar nada. La app compara unas 3 imágenes por segundo; cuando hubo movimiento (la mano del jugador) y la imagen vuelve a quedar quieta ~1 segundo, deduce la jugada y la registra. La jugada aparece grande y en verde en el centro de la pantalla un momento, **sin sonido** para no distraer a los jugadores. Si la confianza es baja, muestra las opciones; si la mano pasó sin mover nada, no hace nada.
-- «Registrar jugada»: respaldo manual. Pulsación larga: elegir la jugada de una lista.
-- «Deshacer»: corrige la última jugada.
+**Registro automático:** no hace falta tocar nada. Registra siempre la jugada más probable; si la confianza es baja la muestra en ámbar con «?» y queda marcada en la web para que el árbitro la revise. La app compara unas 3 imágenes por segundo; cuando hubo movimiento (la mano del jugador) y la imagen vuelve a quedar quieta ~1 segundo, deduce la jugada y la registra. La jugada aparece grande y en verde en el centro de la pantalla un momento, **sin sonido** para no distraer a los jugadores. Si la mano pasó sin mover nada, no hace nada.
+- «Terminar partida»: elegir 1-0, 0-1 o ½-½ y confirmar.
+- «Deshacer»: quita la última jugada. Las demás correcciones se hacen desde la web, tocando la jugada (las dudosas aparecen marcadas).
 - Toque en «Calibrar»: calibración manual (esquinas a8, h8, h1, a1). Pulsación larga en «Calibrar»: vuelve a buscar el tablero solo.
 
 ### Conectar el celular con el servidor
@@ -137,15 +137,17 @@ mvn test
 |---|---|---|
 | POST | `/api/auth/login` | público |
 | GET | `/api/torneos`, `/api/torneos/{id}` | cualquiera autenticado |
-| POST/PUT | `/api/torneos` | ADMIN, ARBITRO |
-| DELETE | `/api/torneos/{id}` (solo sin partidas) | ADMIN |
+| POST/DELETE | `/api/torneos` | ADMIN |
+| PUT | `/api/torneos/{id}` | ADMIN, organizador |
+| GET/POST | `/api/torneos/{id}/asignaciones` (equipo) · PUT `/api/asignaciones/{id}/mesas` · DELETE | según el rol (ver matriz) |
+| POST/DELETE | `/api/torneos/{id}/vinculacion` (QR + PIN) | ADMIN, árbitro principal |
+| GET | `/api/torneos/{id}/dispositivos` · PUT `/api/dispositivos/{id}/mesa` · DELETE | roles del torneo / árbitro principal |
 | GET | `/api/partidas?torneoId=&estado=`, `/api/partidas/{id}` | cualquiera autenticado |
-| POST | `/api/partidas` | ADMIN, ARBITRO |
-| POST | `/api/partidas/{id}/jugadas` | ADMIN, ARBITRO |
-| DELETE | `/api/partidas/{id}/jugadas/ultima` | ADMIN, ARBITRO |
-| PATCH | `/api/partidas/{id}/resultado` | ADMIN, ARBITRO |
-| GET/POST/PUT/DELETE | `/api/usuarios` | ADMIN |
+| POST | `/api/partidas` (mesa, ronda, jugadores) · POST `/{id}/reabrir` · DELETE | ADMIN, árbitro principal |
+| POST | `/api/partidas/{id}/jugadas` · `/{id}/jugadas/{n}/corregir` · DELETE `/ultima` · PATCH `/resultado` | ADMIN, árbitro principal, árbitro de esa mesa |
+| GET/POST/PUT/DELETE | `/api/usuarios` · GET `/api/usuarios/directorio` | ADMIN · cualquiera autenticado |
 | GET | `/api/dashboard` | cualquiera autenticado |
-| GET | `/api/reportes/partidas.pdf?torneoId=`, `.xlsx`, `/api/reportes/partidas/{id}.pdf` | ADMIN, ARBITRO |
+| GET | `/api/reportes/partidas.pdf?torneoId=`, `.xlsx`, `/api/reportes/partidas/{id}.pdf` | roles del torneo (sin torneo: ADMIN) |
+| POST | `/api/dispositivo/vincular` · GET `/estado` · POST `/jugadas` · DELETE `/jugadas/ultima` · POST `/resultado` | el celular, con su token (cabecera `X-Dispositivo`) |
 
 La documentación completa está en Swagger UI.

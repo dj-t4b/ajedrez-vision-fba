@@ -1,10 +1,14 @@
 # Diagrama entidad-relación (MySQL)
 
-El esquema lo crea Flyway con `backend/src/main/resources/db/migration/` (V1: esquema inicial; V2: torneos, con migración de los datos existentes).
+El esquema lo crea Flyway con `backend/src/main/resources/db/migration/` (V1: esquema inicial; V2: torneos; V3: roles por torneo y celulares, con migración de los datos existentes).
 
 ```mermaid
 erDiagram
     TORNEO ||--o{ PARTIDA : agrupa
+    TORNEO ||--o{ ASIGNACION_TORNEO : "equipo"
+    USUARIO ||--o{ ASIGNACION_TORNEO : "tiene rol en"
+    ASIGNACION_TORNEO ||--o{ ACCESO_TABLERO : "mesas del árbitro"
+    TORNEO ||--o{ DISPOSITIVO : "celulares"
     USUARIO ||--o{ PARTIDA : registra
     PARTIDA ||--o{ JUGADA : contiene
 
@@ -13,7 +17,7 @@ erDiagram
         VARCHAR nombre
         VARCHAR email UK
         VARCHAR password_hash "BCrypt"
-        VARCHAR rol "ADMIN, ARBITRO, JUGADOR"
+        VARCHAR rol "ADMIN, USUARIO"
         BOOLEAN activo
         DATETIME creado_en
     }
@@ -24,10 +28,33 @@ erDiagram
         VARCHAR ciudad
         DATE fecha_inicio
         DATETIME creado_en
+        VARCHAR vinculacion_pin_hash "SHA-256 del PIN"
+        DATETIME vinculacion_vence_en
+    }
+    ASIGNACION_TORNEO {
+        BIGINT id PK
+        BIGINT usuario_id FK
+        BIGINT torneo_id FK
+        VARCHAR rol "ORGANIZADOR, ARBITRO_PRINCIPAL, ARBITRO"
+    }
+    ACCESO_TABLERO {
+        BIGINT asignacion_id PK
+        INT mesa PK "sin filas = todas"
+    }
+    DISPOSITIVO {
+        BIGINT id PK
+        BIGINT torneo_id FK
+        VARCHAR codigo "C-07"
+        INT mesa
+        VARCHAR token_hash UK
+        DATETIME vinculado_en
+        DATETIME ultimo_contacto
+        BOOLEAN revocado
     }
     PARTIDA {
         BIGINT id PK
         BIGINT torneo_id FK
+        INT mesa
         INT ronda
         VARCHAR blancas
         VARCHAR negras
@@ -46,6 +73,7 @@ erDiagram
         VARCHAR fen_resultante
         VARCHAR origen "VISION, MANUAL"
         DOUBLE confianza "0..1"
+        VARCHAR registrada_por "C-07 · Mesa 3 o el árbitro"
         DATETIME registrada_en
     }
 ```
