@@ -4,6 +4,7 @@ target/
 *.war
 *.jar
 !**/.mvn/wrapper/*.jar
+!**/gradle/wrapper/gradle-wrapper.jar
 
 # Node
 node_modules/
