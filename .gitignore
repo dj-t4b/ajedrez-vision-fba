@@ -1,0 +1,28 @@
+# Java / Maven
+target/
+*.class
+*.war
+*.jar
+!**/.mvn/wrapper/*.jar
+
+# Node
+node_modules/
+dist/
+
+# Android
+.gradle/
+build/
+local.properties
+*.apk
+captures/
+
+# IDE / SO
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Secretos
+.env
+*.keystore
