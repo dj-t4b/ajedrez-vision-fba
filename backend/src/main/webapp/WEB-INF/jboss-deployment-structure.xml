@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Spring Boot trae su propia JPA (Hibernate), JSON y logging: WildFly no debe inyectar los suyos.
+     Weld no se excluye (Undertow exige CDI); beans.xml desactiva su escaneo. -->
+<jboss-deployment-structure xmlns="urn:jboss:deployment-structure:1.3">
+    <deployment>
+        <exclude-subsystems>
+            <subsystem name="jpa"/>
+            <subsystem name="jaxrs"/>
+            <subsystem name="logging"/>
+        </exclude-subsystems>
+        <!-- WildFly 41 (Jakarta EE 11) expone JPA 3.2; Hibernate 6.6 de Spring Boot usa la JPA 3.1 del .war -->
+        <exclusions>
+            <module name="jakarta.persistence.api"/>
+        </exclusions>
+    </deployment>
+</jboss-deployment-structure>

@@ -1,0 +1,38 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ajedrez
+      MYSQL_USER: ${DB_USER:-ajedrez}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-ajedrez}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      TZ: America/La_Paz
+    ports:
+      - "3307:3306"   # 3307 para no chocar con el MySQL/XAMPP local
+    volumes:
+      - mysql-datos:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  wildfly:
+    build: ./backend
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/ajedrez?serverTimezone=UTC
+      DB_USER: ${DB_USER:-ajedrez}
+      DB_PASSWORD: ${DB_PASSWORD:-ajedrez}
+      JWT_SECRET: ${JWT_SECRET:-cambie-este-secreto-en-el-archivo-env-0123456789}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@fba.bo}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin123}
+      CORS_ORIGENES: ${CORS_ORIGENES:-http://localhost:5173}
+      TZ: America/La_Paz
+    ports:
+      - "8080:8080"
+
+volumes:
+  mysql-datos:
